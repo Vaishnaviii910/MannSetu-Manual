@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogT
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import { 
   Heart, 
   MessageCircle, 
@@ -20,7 +21,8 @@ import {
   Activity,
   Plus,
   Trash2,
-  Save
+  Save,
+  ShieldAlert
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { AreaChart, Area, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -30,7 +32,8 @@ import { Link } from "react-router-dom";
 const StudentDashboard = () => {
   const { 
     studentData, 
-    phqTests, 
+    phqTests,
+    gad7Tests,
     bookings, 
     moodEntries,
     reminders,
@@ -69,9 +72,23 @@ const StudentDashboard = () => {
   };
 
   const latestPHQTest = phqTests[0];
-  const phqScore = latestPHQTest?.score || 0;
-  const phqLevel = latestPHQTest?.severity_level || 'Not Available';
-  
+  const phqScore = latestPHQTest?.score ?? 0;
+  const phqLevel = latestPHQTest?.severity_level || 'Not Assessed';
+
+  const latestGAD7Test = gad7Tests[0];
+  const gad7Score = latestGAD7Test?.score ?? 0;
+  const gad7Level = latestGAD7Test?.severity_level || 'Not Assessed';
+
+  const getOverallRiskLevel = () => {
+      if (phqLevel === 'Severe' || gad7Level === 'Severe') return {level: 'High', variant: 'destructive'};
+      if (phqLevel === 'Moderately Severe' || gad7Level === 'Moderate') return {level: 'Moderate', variant: 'default'};
+      if (phqLevel === 'Moderate') return {level: 'Moderate', variant: 'default'};
+      if (phqLevel === 'Mild' || gad7Level === 'Mild') return {level: 'Low', variant: 'secondary'};
+      return {level: 'Minimal', variant: 'secondary'};
+  }
+
+  const overallRisk = getOverallRiskLevel();
+
   const moodData = moodEntries.slice(0, 7).reverse().map(entry => ({
     day: new Date(entry.entry_date).toLocaleDateString('en', { weekday: 'short' }),
     mood: moodValueMapping[entry.mood]
@@ -136,19 +153,38 @@ const StudentDashboard = () => {
           </p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
           <Card className="bg-gradient-to-br from-primary-soft to-primary-soft/30 border-primary/20">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">PHQ-9 Score</CardTitle>
+              <CardTitle className="text-sm font-medium">Depression (PHQ-9)</CardTitle>
               <Brain className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{phqScore}/27</div>
               <Badge variant="secondary" className="mt-2">{phqLevel}</Badge>
-              <Progress value={(phqScore / 27) * 100} className="mt-3" />
             </CardContent>
           </Card>
-          <Card className="bg-gradient-to-br from-success-soft to-success-soft/30 border-success/20">
+          <Card className="bg-gradient-to-br from-accent-soft to-accent-soft/30 border-accent/20">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Anxiety (GAD-7)</CardTitle>
+              <Activity className="h-4 w-4 text-accent" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{gad7Score}/21</div>
+              <Badge variant="secondary" className="mt-2">{gad7Level}</Badge>
+            </CardContent>
+          </Card>
+           <Card className={`bg-gradient-to-br from-card to-muted/30 border-${overallRisk.variant}/20`}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Overall Risk Level</CardTitle>
+              <ShieldAlert className={`h-4 w-4 text-${overallRisk.variant}`} />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{overallRisk.level}</div>
+               <Badge variant={overallRisk.variant} className="mt-2">Based on assessments</Badge>
+            </CardContent>
+          </Card>
+          <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Active Bookings</CardTitle>
               <Calendar className="h-4 w-4 text-success" />
@@ -156,18 +192,6 @@ const StudentDashboard = () => {
             <CardContent>
               <div className="text-2xl font-bold">{bookings.filter(b => b.status === 'confirmed').length}</div>
               <Badge variant="secondary" className="mt-2">Upcoming</Badge>
-              <Progress value={bookings.length > 0 ? 100 : 0} className="mt-3" />
-            </CardContent>
-          </Card>
-          <Card className="bg-gradient-to-br from-accent-soft to-accent-soft/30 border-accent/20">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Wellness Streak</CardTitle>
-              <TrendingUp className="h-4 w-4 text-accent" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{moodEntries.length}</div>
-              <Badge variant="secondary" className="mt-2">Days tracked</Badge>
-              <Progress value={Math.min((moodEntries.length / 30) * 100, 100)} className="mt-3" />
             </CardContent>
           </Card>
         </div>
@@ -213,49 +237,41 @@ const StudentDashboard = () => {
           <Card className="bg-gradient-to-br from-accent-soft/50 to-accent-soft/20 border-accent/10">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <CheckCircle className="h-5 w-5 text-accent" />
-                Today's Focus
+                <CheckCircle className="h-5 w-5 text-accent" /> Today's Focus
               </CardTitle>
-              <CardDescription>
-                Your wellness goal for today
-              </CardDescription>
+              <CardDescription>Your wellness goal for today</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="p-4 rounded-lg bg-accent-soft/30 border border-accent/20">
-                <p className="font-medium text-accent">{todaysFocus}</p>
-              </div>
-              
-              <div className="space-y-3">
-                <h4 className="text-sm font-medium">Quick Actions</h4>
+                <div className="p-4 rounded-lg bg-accent-soft/30 border border-accent/20">
+                    <p className="font-medium text-accent">{studentData?.todays_focus || "Practice mindfulness for 10 minutes"}</p>
+                </div>
                 <div className="space-y-2">
-                  <Button variant="outline" size="sm" className="w-full justify-start" onClick={handleMoodSubmit}>
-                    <Activity className="h-4 w-4 mr-2" />
-                    Save today's mood
-                  </Button>
-                  <Button asChild variant="outline" size="sm" className="w-full justify-start">
-                    <Link to="/student/mental-health-checkup">
-                      <Brain className="h-4 w-4 mr-2" />
-                      Take mental health checkup
-                    </Link>
-                  </Button>
+                    <Label htmlFor="todays-focus-input" className="text-sm font-medium">Update your focus:</Label>
+                    <div className="flex gap-2">
+                        <Input
+                            id="todays-focus-input"
+                            value={todaysFocus}
+                            onChange={(e) => setTodaysFocus(e.target.value)}
+                            placeholder="Set your wellness goal..."
+                        />
+                        <Button size="sm" onClick={handleFocusSubmit}>
+                            <Save className="h-4 w-4" />
+                        </Button>
+                    </div>
                 </div>
-              </div>
-
-              <div className="mt-4">
-                <Label className="text-sm font-medium">Update today's focus:</Label>
-                <div className="flex gap-2 mt-1">
-                  <Input
-                    type="text"
-                    value={todaysFocus}
-                    onChange={(e) => setTodaysFocus(e.target.value)}
-                    className="w-full text-sm"
-                    placeholder="Set your wellness goal..."
-                  />
-                  <Button size="sm" onClick={handleFocusSubmit}>
-                    <Save className="h-4 w-4" />
-                  </Button>
+                <div className="space-y-3 pt-4 border-t">
+                    <h4 className="text-sm font-medium">Quick Actions</h4>
+                    <div className="space-y-2">
+                        <Button variant="outline" size="sm" className="w-full justify-start" onClick={handleMoodSubmit}>
+                            <Activity className="h-4 w-4 mr-2" /> Save Today's Mood
+                        </Button>
+                        <Button variant="outline" size="sm" className="w-full justify-start" asChild>
+                            <Link to="/student/mental-health-checkup">
+                                <Brain className="h-4 w-4 mr-2" /> Take Mental Health Checkup
+                            </Link>
+                        </Button>
+                    </div>
                 </div>
-              </div>
             </CardContent>
           </Card>
         </div>
@@ -343,6 +359,14 @@ const StudentDashboard = () => {
 };
 
 export default StudentDashboard;
+
+
+
+
+
+
+
+
 
 
 

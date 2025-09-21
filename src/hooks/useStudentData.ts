@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { useToast } from "@/hooks/use-toast";
@@ -14,7 +14,7 @@ export const useStudentData = () => {
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
-  const fetchAllData = async () => {
+  const fetchAllData = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     try {
@@ -39,10 +39,10 @@ export const useStudentData = () => {
         { data: moodData },
         { data: reminderData }
       ] = await Promise.all([
-        supabase.from('phq_tests').select('*').eq('student_id', student.id).order('test_date', { ascending: false }),
-        supabase.from('gad_7_tests').select('*').eq('student_id', student.id).order('test_date', { ascending: false }),
+        supabase.from('phq_tests').select('*').eq('student_id', student.id).order('created_at', { ascending: false }),
+        supabase.from('gad_7_tests').select('*').eq('student_id', student.id).order('created_at', { ascending: false }),
         supabase.from('bookings').select('*, counselors(full_name, speciality)').eq('student_id', student.id).order('booking_date', { ascending: false }),
-        supabase.from('mood_entries').select('*').eq('student_id', student.id).order('entry_date', { ascending: false }).limit(7),
+        supabase.from('mood_entries').select('*').eq('student_id', student.id).order('created_at', { ascending: false }).limit(7),
         supabase.from('reminders').select('*').eq('user_id', user.id).order('created_at', { ascending: false })
       ]);
 
@@ -57,13 +57,13 @@ export const useStudentData = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
   
   useEffect(() => {
     if(user){
       fetchAllData();
     }
-  }, [user]);
+  }, [user, fetchAllData]);
 
   const submitPHQTest = async (answers: Record<number, number>) => {
     if (!studentData) return { error: { message: "Student not found" }};
@@ -87,14 +87,14 @@ export const useStudentData = () => {
     else if (score >= 10) severityLevel = 'Moderate';
     else if (score >= 5) severityLevel = 'Mild';
 
-    const { data, error } = await supabase.from('gad_7_tests').insert({ student_id: studentData.id, score, answers, severity_level: severityLevel }).select().single();
+    const { data, error } = await supabase.from('gad_7_tests').insert({ student_id: studentData.id, score, answers, interpretation: severityLevel }).select().single();
     if (!error) fetchAllData();
     return { data, error, score, severityLevel };
   };
 
   const addMoodEntry = async (mood: string, notes?: string) => {
     if (!studentData) return;
-    const { error } = await supabase.from('mood_entries').insert([{ student_id: studentData.id, mood: mood as any, notes, entry_date: new Date().toISOString().split('T')[0] }]);
+    const { error } = await supabase.from('mood_entries').insert([{ student_id: studentData.id, mood: mood as any, notes }]);
     if (!error) {
         toast({ title: "Mood Saved!", description: "Your mood for today has been recorded." });
         fetchAllData();
@@ -141,6 +141,31 @@ export const useStudentData = () => {
     }
   };
 
+  const cancelBooking = useCallback(async (bookingId: string, timeSlotId: string) => {
+    try {
+      const { error: bookingError } = await supabase
+        .from('bookings')
+        .update({ status: 'cancelled' })
+        .eq('id', bookingId);
+      if (bookingError) throw bookingError;
+
+      const { error: slotError } = await supabase
+        .from('time_slots')
+        .update({ status: 'available' })
+        .eq('id', timeSlotId);
+      if (slotError) throw slotError;
+
+      await fetchAllData();
+      return { error: null };
+    } catch (error) {
+      return { error };
+    }
+  }, [fetchAllData]);
+
+  const upcomingBookings = useMemo(() => {
+    return bookings.filter(b => b.status === 'confirmed' && new Date(b.booking_date) >= new Date());
+  }, [bookings]);
+
   return {
     studentData,
     phqTests,
@@ -156,9 +181,13 @@ export const useStudentData = () => {
     addReminder,
     toggleReminder,
     deleteReminder,
+    cancelBooking,
+    upcomingBookings,
     refreshData: fetchAllData
   };
 };
+
+
 
 
 // import { useState, useEffect, useCallback } from 'react';

@@ -22,6 +22,8 @@ import InstituteStudents from "./pages/institute/Students";
 import CounselorManagement from "./pages/institute/CounselorManagement";
 import Analytics from "./pages/institute/Analytics";
 import Settings from "./pages/institute/Settings";
+import CounselorAvailability from "./pages/institute/CounselorAvailability";
+import MyBookings from "./pages/student/MyBookings";
 
 const queryClient = new QueryClient();
 
@@ -50,6 +52,11 @@ const App = () => (
             <Route path="/student/mental-health-checkup" element={
               <ProtectedRoute allowedRoles={['student']}>
                 <MentalHealthCheckup />
+              </ProtectedRoute>
+            } />
+            <Route path="/student/my-bookings" element={
+              <ProtectedRoute allowedRoles={['student']}>
+                <MyBookings />
               </ProtectedRoute>
             } />
             <Route path="/student/peer-support" element={
@@ -99,6 +106,11 @@ const App = () => (
             <Route path="/institute/counselors" element={
               <ProtectedRoute allowedRoles={['institute']}>
                 <CounselorManagement />
+              </ProtectedRoute>
+            } />
+             <Route path="/institute/counselor-availability/:counselorId" element={
+              <ProtectedRoute allowedRoles={['institute']}>
+                <CounselorAvailability />
               </ProtectedRoute>
             } />
             <Route path="/institute/analytics" element={

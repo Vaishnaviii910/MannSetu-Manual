@@ -63,6 +63,7 @@ const StudentDashboard = () => {
     { title: "Mental Health Checkup", url: "/student/mental-health-checkup", icon: Brain },
     { title: "AI Chatbot", url: "/student/chatbot", icon: MessageCircle },
     { title: "Book Session", url: "/student/book-session", icon: Calendar },
+    { title: "My Bookings", url: "/student/my-bookings", icon: Calendar },
     { title: "Peer Support", url: "/student/peer-support", icon: Users },
     { title: "Resources Hub", url: "/student/resources", icon: BookOpen },
   ];
@@ -79,7 +80,7 @@ const StudentDashboard = () => {
   const gad7Score = latestGAD7Test?.score ?? 0;
   const gad7Level = latestGAD7Test?.severity_level || 'Not Assessed';
 
-  const getOverallRiskLevel = () => {
+  const getOverallRiskLevel = (): { level: string; variant: 'destructive' | 'default' | 'secondary' | 'outline' } => {
       if (phqLevel === 'Severe' || gad7Level === 'Severe') return {level: 'High', variant: 'destructive'};
       if (phqLevel === 'Moderately Severe' || gad7Level === 'Moderate') return {level: 'Moderate', variant: 'default'};
       if (phqLevel === 'Moderate') return {level: 'Moderate', variant: 'default'};

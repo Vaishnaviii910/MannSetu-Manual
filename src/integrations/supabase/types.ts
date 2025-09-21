@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "13.0.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       audit_logs: {
@@ -80,7 +105,7 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "availability_slots_counselor_id_fkey"
+            foreignKeyName: "availability_slots_counselor_id_fkey1"
             columns: ["counselor_id"]
             isOneToOne: false
             referencedRelation: "counselors"
@@ -91,6 +116,7 @@ export type Database = {
       bookings: {
         Row: {
           booking_date: string
+          cancellation_reason: string | null
           counselor_id: string
           counselor_notes: string | null
           created_at: string
@@ -106,6 +132,7 @@ export type Database = {
         }
         Insert: {
           booking_date: string
+          cancellation_reason?: string | null
           counselor_id: string
           counselor_notes?: string | null
           created_at?: string
@@ -121,6 +148,7 @@ export type Database = {
         }
         Update: {
           booking_date?: string
+          cancellation_reason?: string | null
           counselor_id?: string
           counselor_notes?: string | null
           created_at?: string
@@ -181,6 +209,47 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      counselor_availability: {
+        Row: {
+          counselor_id: string
+          created_at: string
+          day_of_week: number
+          end_time: string
+          id: string
+          is_active: boolean | null
+          start_time: string
+          updated_at: string
+        }
+        Insert: {
+          counselor_id: string
+          created_at?: string
+          day_of_week: number
+          end_time: string
+          id?: string
+          is_active?: boolean | null
+          start_time: string
+          updated_at?: string
+        }
+        Update: {
+          counselor_id?: string
+          created_at?: string
+          day_of_week?: number
+          end_time?: string
+          id?: string
+          is_active?: boolean | null
+          start_time?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "availability_slots_counselor_id_fkey"
+            columns: ["counselor_id"]
+            isOneToOne: false
+            referencedRelation: "counselors"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       counselors: {
         Row: {
@@ -792,6 +861,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_counselor_profile: {
+        Args: {
+          bio: string
+          experience_years: number
+          full_name: string
+          institute_id: string
+          phone: string
+          qualifications: string
+          speciality: string
+          user_id: string
+        }
+        Returns: undefined
+      }
       generate_counselor_id: {
         Args: Record<PropertyKey, never>
         Returns: string
@@ -949,6 +1031,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       availability_status: ["available", "pending", "booked", "blocked"],

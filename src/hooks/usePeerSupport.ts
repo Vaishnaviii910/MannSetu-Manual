@@ -3,7 +3,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 import { toast } from "@/components/ui/use-toast";
 
-// Interfaces for our data structures
 interface Forum {
   id: string;
   title: string;
@@ -26,7 +25,7 @@ interface Reply {
 
 interface Post {
   post_id: string;
-  id?: string; // original id field exists on DB rows
+  id?: string;
   title: string;
   content: string;
   created_at: string;
@@ -36,7 +35,6 @@ interface Post {
     full_name: string;
     avatar_url?: string;
   };
-  // Extended fields:
   like_count?: number;
   reply_count?: number;
   liked_by_me?: boolean;
@@ -56,7 +54,6 @@ export const usePeerSupport = () => {
   const [loading, setLoading] = useState(true);
   const [studentInfo, setStudentInfo] = useState<StudentInfo | null>(null);
 
-  // Fetch student info
   useEffect(() => {
     if (user?.id) {
       const fetchStudentInfo = async () => {
@@ -76,7 +73,6 @@ export const usePeerSupport = () => {
     }
   }, [user]);
 
-  // Fetch forums
   const fetchForums = useCallback(async () => {
     if (!studentInfo) return;
 
@@ -98,11 +94,9 @@ export const usePeerSupport = () => {
     }
   }, [studentInfo]);
 
-  // Fetch posts + reaction counts + reply counts + whether current user reacted
   const fetchPosts = useCallback(async () => {
     if (!studentInfo) return;
 
-    // get forum IDs for institute
     const { data: forumIds, error: forumIdError } = await supabase
       .from("forums")
       .select("id")
@@ -116,7 +110,6 @@ export const usePeerSupport = () => {
 
     const ids = forumIds.map((f: any) => f.id);
 
-    // Fetch posts
     const { data: postsData, error: postsError } = await supabase
       .from("forum_posts")
       .select("*")
@@ -136,7 +129,6 @@ export const usePeerSupport = () => {
 
     const postIds = postsData.map((p: any) => p.id);
 
-    // Fetch reactions for these posts
     const { data: reactionsData, error: reactionsError } = await supabase
       .from("forum_post_reactions")
       .select("post_id, user_id")
@@ -146,7 +138,6 @@ export const usePeerSupport = () => {
       console.error("Error fetching reactions:", reactionsError);
     }
 
-    // Fetch replies for these posts (we will populate reply_count and optionally replies)
     const { data: repliesData, error: repliesError } = await supabase
       .from("forum_replies")
       .select("id, post_id, student_id, content, created_at, is_anonymous")
@@ -157,7 +148,6 @@ export const usePeerSupport = () => {
       console.error("Error fetching replies:", repliesError);
     }
 
-    // Collect student ids needed to show names (from posts and replies)
     const studentIdsSet = new Set<string>();
     postsData.forEach((p: any) => studentIdsSet.add(p.student_id));
     (repliesData || []).forEach((r: any) => studentIdsSet.add(r.student_id));
@@ -179,7 +169,6 @@ export const usePeerSupport = () => {
 
     const studentMap = new Map((studentsData || []).map((s: any) => [s.id, s.full_name]));
 
-    // Build likes map and whether current user liked each post
     const likeCountMap = new Map<string, number>();
     const likedByMeSet = new Set<string>();
     (reactionsData || []).forEach((r: any) => {
@@ -187,7 +176,6 @@ export const usePeerSupport = () => {
       if (user && r.user_id === user.id) likedByMeSet.add(r.post_id);
     });
 
-    // Build replies grouped by post
     const repliesByPost = new Map<string, Reply[]>();
     (repliesData || []).forEach((r: any) => {
       const arr = repliesByPost.get(r.post_id) || [];
@@ -199,21 +187,21 @@ export const usePeerSupport = () => {
         student_id: r.student_id,
         is_anonymous: r.is_anonymous,
         profiles: {
-          full_name: studentMap.get(r.student_id) || "Anonymous",
+          full_name: r.is_anonymous ? "Anonymous" : studentMap.get(r.student_id) || "Anonymous",
         },
       });
       repliesByPost.set(r.post_id, arr);
     });
 
-    // Map posts into final shape
     const postsWithAuthors: Post[] = postsData.map((post: any) => {
       const repliesForPost = repliesByPost.get(post.id) || [];
       return {
         ...(post as any),
         post_id: post.id,
         profiles: {
-          full_name: studentMap.get(post.student_id) || "Anonymous",
+          full_name: post.is_anonymous ? "Anonymous" : studentMap.get(post.student_id) || "Anonymous",
         },
+        is_anonymous: post.is_anonymous ?? false,
         like_count: likeCountMap.get(post.id) || 0,
         reply_count: repliesForPost.length,
         liked_by_me: likedByMeSet.has(post.id),
@@ -224,7 +212,6 @@ export const usePeerSupport = () => {
     setPosts(postsWithAuthors);
   }, [studentInfo, user]);
 
-  // Perform initial load
   useEffect(() => {
     const initialize = async () => {
       setLoading(true);
@@ -237,8 +224,7 @@ export const usePeerSupport = () => {
     initialize();
   }, [studentInfo, fetchForums, fetchPosts]);
 
-  // Create post (unchanged)
-  const createPost = async (title: string, content: string, forumId: string) => {
+  const createPost = async (title: string, content: string, forumId: string, isAnonymous = false) => {
     if (!user || !studentInfo || !forumId) {
       toast({
         title: "Error",
@@ -254,6 +240,7 @@ export const usePeerSupport = () => {
         content,
         student_id: studentInfo.id,
         forum_id: forumId,
+        is_anonymous: isAnonymous,
       },
     ]);
 
@@ -273,7 +260,6 @@ export const usePeerSupport = () => {
     }
   };
 
-  // Toggle reaction (like/unlike)
   const toggleReaction = async (postId: string) => {
     if (!user) {
       toast({
@@ -284,7 +270,6 @@ export const usePeerSupport = () => {
       return;
     }
 
-    // optimistic update
     const prev = posts.map((p) => ({ ...p }));
     setPosts((prevPosts) =>
       prevPosts.map((p) =>
@@ -299,7 +284,6 @@ export const usePeerSupport = () => {
     );
 
     try {
-      // Check existing reaction
       const { data: existing, error: checkError } = await supabase
         .from("forum_post_reactions")
         .select("id")
@@ -310,7 +294,6 @@ export const usePeerSupport = () => {
       if (checkError) throw checkError;
 
       if (existing && existing.id) {
-        // delete
         const { error: delError } = await supabase
           .from("forum_post_reactions")
           .delete()
@@ -318,7 +301,6 @@ export const usePeerSupport = () => {
 
         if (delError) throw delError;
       } else {
-        // insert
         const { error: insError } = await supabase
           .from("forum_post_reactions")
           .insert([{ post_id: postId, user_id: user.id }]);
@@ -327,7 +309,6 @@ export const usePeerSupport = () => {
       }
     } catch (err: any) {
       console.error("Error toggling reaction:", err);
-      // rollback
       setPosts(prev);
       toast({
         title: "Action failed",
@@ -337,7 +318,6 @@ export const usePeerSupport = () => {
     }
   };
 
-  // Lazy fetch replies for a given post (used when user opens replies)
   const fetchReplies = useCallback(
     async (postId: string) => {
       if (!postId) return;
@@ -376,7 +356,7 @@ export const usePeerSupport = () => {
         created_at: r.created_at,
         student_id: r.student_id,
         is_anonymous: r.is_anonymous,
-        profiles: { full_name: studentMap.get(r.student_id) || "Anonymous" },
+        profiles: { full_name: r.is_anonymous ? "Anonymous" : studentMap.get(r.student_id) || "Anonymous" },
       }));
 
       setPosts((prev) => prev.map((p) => (p.post_id === postId ? { ...p, replies, reply_count: replies.length } : p)));
@@ -384,7 +364,6 @@ export const usePeerSupport = () => {
     [studentInfo]
   );
 
-  // Create reply (optimistic)
   const createReply = async (postId: string, content: string, isAnonymous = false) => {
     if (!studentInfo) {
       toast({
@@ -411,10 +390,9 @@ export const usePeerSupport = () => {
       created_at: new Date().toISOString(),
       student_id: studentInfo.id,
       is_anonymous: isAnonymous,
-      profiles: { full_name: "You" },
+      profiles: { full_name: isAnonymous ? "Anonymous" : "You" },
     };
 
-    // optimistic append
     const prev = posts.map((p) => ({ ...p }));
     setPosts((prevPosts) =>
       prevPosts.map((p) =>
@@ -433,23 +411,32 @@ export const usePeerSupport = () => {
 
       if (error) throw error;
 
-      // fetch full name for student (or try to get from posts' existing students)
       const { data: studentRow } = await supabase.from("students").select("id, full_name").eq("id", studentInfo.id).single();
 
-      // replace temp reply with real reply
       setPosts((prevPosts) =>
         prevPosts.map((p) =>
           p.post_id === postId
             ? {
                 ...p,
-                replies: (p.replies || []).map((r) => (String(r.reply_id).startsWith("temp-") ? { reply_id: data.id, post_id: data.post_id, content: data.content, created_at: data.created_at, student_id: data.student_id, profiles: { full_name: studentRow?.full_name || "Anonymous" } } : r)),
+                replies: (p.replies || []).map((r) =>
+                  String(r.reply_id).startsWith("temp-")
+                    ? {
+                        reply_id: data.id,
+                        post_id: data.post_id,
+                        content: data.content,
+                        created_at: data.created_at,
+                        student_id: data.student_id,
+                        is_anonymous: data.is_anonymous,
+                        profiles: { full_name: data.is_anonymous ? "Anonymous" : studentRow?.full_name || "Anonymous" },
+                      }
+                    : r
+                ),
               }
             : p
         )
       );
     } catch (err) {
       console.error("Error creating reply:", err);
-      // rollback
       setPosts(prev);
       toast({
         title: "Error",

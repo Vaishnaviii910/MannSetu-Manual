@@ -1,9 +1,12 @@
 import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { 
+  Card, CardContent, CardDescription, CardHeader, CardTitle 
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { 
   MessageCircle, 
   Send, 
@@ -14,17 +17,23 @@ import {
   Users,
   Phone,
   Calendar,
-  Sparkles
+  Sparkles,
+  History
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { useStudentData } from "@/hooks/useStudentData";
 
 const Chatbot = () => {
+  const { user } = useAuth();
+  const { studentData } = useStudentData();
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([
     {
       type: "bot",
       content: "Hello! I'm MannMitra, your AI mental health companion. I'm here to provide support, coping strategies, and resources. How are you feeling today?",
-      timestamp: "10:30 AM"
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
   ]);
 
@@ -43,8 +52,8 @@ const Chatbot = () => {
     { text: "I feel overwhelmed with coursework", icon: Lightbulb, category: "academic" },
   ];
 
-  const handleSendMessage = () => {
-    if (!message.trim()) return;
+  const handleSendMessage = async () => {
+    if (!message.trim() || !user) return;
 
     const newUserMessage = {
       type: "user" as const,
@@ -53,31 +62,45 @@ const Chatbot = () => {
     };
 
     setMessages(prev => [...prev, newUserMessage]);
+    setMessage("");
 
-    // Simulate AI response
-    setTimeout(() => {
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-ai-response', {
+        body: { prompt: newUserMessage.content, user_id: user.id },
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+      
       const botResponse = {
         type: "bot" as const,
-        content: generateBotResponse(message),
+        content: data.text.replace(/\*/g, ''), // Clean formatting
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
       setMessages(prev => [...prev, botResponse]);
-    }, 1000);
-
-    setMessage("");
+    } catch (error) {
+      console.error("Error fetching AI response:", error);
+      const errorResponse = {
+        type: "bot" as const,
+        content: fallbackBotResponse(newUserMessage.content),
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      setMessages(prev => [...prev, errorResponse]);
+    }
   };
 
-  const generateBotResponse = (userMessage: string): string => {
+  const fallbackBotResponse = (userMessage: string): string => {
     const lowerMessage = userMessage.toLowerCase();
     
     if (lowerMessage.includes("anxious") || lowerMessage.includes("anxiety")) {
-      return "I understand you're feeling anxious. Here are some techniques that can help: 1) Try the 4-7-8 breathing technique (inhale for 4, hold for 7, exhale for 8). 2) Ground yourself using the 5-4-3-2-1 method (name 5 things you see, 4 you can touch, 3 you hear, 2 you smell, 1 you taste). Would you like me to guide you through a breathing exercise, or would you prefer to book a session with a counselor?";
+      return "I understand you're feeling anxious. Try the 4-7-8 breathing technique or the 5-4-3-2-1 grounding method. Would you like me to guide you?";
     } else if (lowerMessage.includes("stress")) {
-      return "Stress is very common among students. Some effective strategies include: taking regular breaks using the Pomodoro technique, engaging in physical activity, practicing mindfulness, and maintaining a consistent sleep schedule. What specific aspect of stress would you like to work on together?";
+      return "Stress is common. Try Pomodoro technique, mindfulness, or light exercise. What aspect of stress would you like to work on?";
     } else if (lowerMessage.includes("sleep") || lowerMessage.includes("insomnia")) {
-      return "Sleep issues can significantly impact your mental health and academic performance. Try establishing a bedtime routine, avoiding screens 1 hour before bed, and creating a comfortable sleep environment. If this persists, I'd recommend speaking with a counselor. Would you like me to help you create a sleep schedule?";
+      return "Good sleep is vital. Try a bedtime routine, no screens before bed, and a calm environment. Want me to help you make a schedule?";
     } else {
-      return "Thank you for sharing that with me. I'm here to support you. Based on what you've told me, I think it might be helpful to explore some coping strategies together. Would you like to try a quick mindfulness exercise, learn about stress management techniques, or would you prefer to connect with one of our counselors for more personalized support?";
+      return "Thank you for sharing. Would you like to try a mindfulness exercise, learn stress management, or connect with a counselor?";
     }
   };
 
@@ -86,7 +109,7 @@ const Chatbot = () => {
   };
 
   return (
-    <DashboardLayout sidebarItems={sidebarItems} userType="student" userName="Alex Johnson">
+    <DashboardLayout sidebarItems={sidebarItems} userType="student" userName={studentData?.full_name || "Student"}>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -101,28 +124,55 @@ const Chatbot = () => {
               Get instant mental health support, coping strategies, and guidance 24/7
             </p>
           </div>
-          <Badge variant="secondary" className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-success rounded-full animate-pulse" />
-            Online
-          </Badge>
+          <div className="flex items-center gap-3">
+            <Badge variant="secondary" className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-success rounded-full animate-pulse" />
+              Online
+            </Badge>
+
+            {/* View History Button */}
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="flex items-center gap-1">
+                  <History className="h-4 w-4" /> View History
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-h-[500px] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Chat History</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-3">
+                  {messages.map((msg, idx) => (
+                    <div key={idx} className="border rounded-lg p-3">
+                      <p className="text-xs font-semibold">{msg.type === "user" ? "You" : "MannMitra"}</p>
+                      <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
+                      <p className="text-[10px] text-muted-foreground">{msg.timestamp}</p>
+                    </div>
+                  ))}
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
         <div className="grid lg:grid-cols-4 gap-6">
           {/* Chat Interface */}
-          <Card className="lg:col-span-3 h-[600px] flex flex-col">
-            <CardHeader className="border-b">
-              <CardTitle className="flex items-center gap-2">
-                <MessageCircle className="h-5 w-5" />
-                Chat with MannMitra
-              </CardTitle>
-              <CardDescription>
-                Your confidential AI companion for mental health support
-              </CardDescription>
+          <Card className="lg:col-span-3 flex-1 flex flex-col bg-card">
+            <CardHeader className="border-b flex-row justify-between items-center">
+              <div className="space-y-1.5">
+                <CardTitle className="flex items-center gap-2">
+                  <MessageCircle className="h-5 w-5" />
+                  Chat with MannMitra
+                </CardTitle>
+                <CardDescription>
+                  Your confidential AI companion for mental health support
+                </CardDescription>
+              </div>
             </CardHeader>
             
-            <CardContent className="flex-1 p-0 flex flex-col">
+            <CardContent className="flex-1 p-0 flex flex-col overflow-scroll">
               {/* Messages */}
-              <ScrollArea className="flex-1 p-4">
+              <ScrollArea className="flex-1 p-4 overflow-y-auto">
                 <div className="space-y-4">
                   {messages.map((msg, index) => (
                     <div
@@ -130,11 +180,12 @@ const Chatbot = () => {
                       className={`flex ${msg.type === "user" ? "justify-end" : "justify-start"}`}
                     >
                       <div
-                        className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                          msg.type === "user"
+                        className={`max-w-[80%] rounded-2xl px-4 py-3 
+                          whitespace-pre-wrap break-words
+                          ${msg.type === "user"
                             ? "bg-primary text-primary-foreground"
                             : "bg-muted text-muted-foreground"
-                        }`}
+                          }`}
                       >
                         <p className="text-sm leading-relaxed">{msg.content}</p>
                         <p className="text-xs opacity-70 mt-2">{msg.timestamp}</p>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 
@@ -6,142 +6,100 @@ export const useCounselorData = () => {
   const { user } = useAuth();
   const [counselorData, setCounselorData] = useState<any>(null);
   const [bookings, setBookings] = useState<any[]>([]);
-  const [students, setStudents] = useState<any[]>([]);
-  const [todaySessions, setTodaySessions] = useState<any[]>([]);
-  const [pendingRequests, setPendingRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (user) {
-      fetchCounselorData();
-    }
-  }, [user]);
-
-  const fetchCounselorData = async () => {
+  const fetchCounselorData = useCallback(async () => {
+    if (!user) return;
     try {
-      // Get counselor profile
-      const { data: counselor } = await supabase
+      setLoading(true);
+      
+      // Fetch counselor profile
+      const { data: counselor, error: counselorError } = await supabase
         .from('counselors')
         .select('*')
-        .eq('user_id', user?.id)
+        .eq('user_id', user.id)
         .single();
 
+      if (counselorError) throw counselorError;
       setCounselorData(counselor);
 
       if (counselor) {
-        // Get all bookings for this counselor
-        const { data: counselorBookings } = await supabase
+        // Fetch all bookings for this counselor, selecting only existing columns
+        const { data: bookingsData, error: bookingsError } = await supabase
           .from('bookings')
-          .select(`
-            *,
-            students (
-              full_name,
-              student_id
-            )
-          `)
+          .select('*, students(full_name, student_id)')
           .eq('counselor_id', counselor.id)
           .order('booking_date', { ascending: false });
-
-        setBookings(counselorBookings || []);
-
-        // Filter today's sessions
-        const today = new Date().toISOString().split('T')[0];
-        const todayBookings = counselorBookings?.filter(booking => 
-          booking.booking_date === today && booking.status === 'confirmed'
-        ) || [];
-        setTodaySessions(todayBookings);
-
-        // Filter pending requests
-        const pending = counselorBookings?.filter(booking => 
-          booking.status === 'pending'
-        ) || [];
-        setPendingRequests(pending);
-
-        // Get students for this counselor's institute
-        const { data: instituteStudents } = await supabase
-          .from('students')
-          .select('*')
-          .eq('institute_id', counselor.institute_id);
-
-        setStudents(instituteStudents || []);
+        
+        if (bookingsError) throw bookingsError;
+        setBookings(bookingsData || []);
       }
     } catch (error) {
       console.error('Error fetching counselor data:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
-  const updateBookingStatus = async (bookingId: string, status: 'confirmed' | 'rejected', rejectionReason?: string) => {
+  useEffect(() => {
+    fetchCounselorData();
+  }, [fetchCounselorData]);
+
+  const approveBooking = useCallback(async (bookingId: string, timeSlotId: string) => {
     try {
-      const updateData: any = { status };
-      if (rejectionReason) {
-        updateData.rejection_reason = rejectionReason;
-      }
-
-      const { error } = await supabase
+      // 1. Update booking status to 'confirmed'
+      const { error: bookingError } = await supabase
         .from('bookings')
-        .update(updateData)
+        .update({ status: 'confirmed' })
         .eq('id', bookingId);
+      if (bookingError) throw bookingError;
 
-      if (!error) {
-        // If confirmed, update time slot status
-        if (status === 'confirmed') {
-          const booking = bookings.find(b => b.id === bookingId);
-          if (booking) {
-            await supabase
-              .from('time_slots')
-              .update({ status: 'booked' })
-              .eq('id', booking.time_slot_id);
-          }
-        }
-        fetchCounselorData(); // Refresh data
-      }
+      // 2. Update time slot status to 'booked'
+      const { error: slotError } = await supabase
+        .from('time_slots')
+        .update({ status: 'booked' })
+        .eq('id', timeSlotId);
+      if (slotError) throw slotError;
 
-      return { error };
+      // 3. Refresh data
+      await fetchCounselorData();
+      return { error: null };
     } catch (error) {
       return { error };
     }
-  };
-
-  const createSessionRecord = async (bookingId: string, sessionNotes: string, sessionSummary: string, nextSteps?: string, sessionRating?: number) => {
+  }, [fetchCounselorData]);
+  
+  const rejectBooking = useCallback(async (bookingId: string, timeSlotId: string, reason: string) => {
     try {
-      const { error } = await supabase
-        .from('session_records')
-        .insert({
-          booking_id: bookingId,
-          session_notes: sessionNotes,
-          session_summary: sessionSummary,
-          next_steps: nextSteps,
-          session_rating: sessionRating,
-          completed_at: new Date().toISOString()
-        });
+      // 1. Update booking status to 'rejected' and add reason
+      const { error: bookingError } = await supabase
+        .from('bookings')
+        .update({ status: 'rejected', rejection_reason: reason })
+        .eq('id', bookingId);
+      if (bookingError) throw bookingError;
 
-      if (!error) {
-        // Update booking status to completed
-        await supabase
-          .from('bookings')
-          .update({ status: 'completed' })
-          .eq('id', bookingId);
-        
-        fetchCounselorData(); // Refresh data
-      }
+      // 2. Update time slot status back to 'available'
+      const { error: slotError } = await supabase
+        .from('time_slots')
+        .update({ status: 'available' })
+        .eq('id', timeSlotId);
+      if (slotError) throw slotError;
 
-      return { error };
+      // 3. Refresh data
+      await fetchCounselorData();
+      return { error: null };
     } catch (error) {
       return { error };
     }
-  };
+  }, [fetchCounselorData]);
 
   return {
     counselorData,
     bookings,
-    students,
-    todaySessions,
-    pendingRequests,
     loading,
-    updateBookingStatus,
-    createSessionRecord,
-    refreshData: fetchCounselorData
+    approveBooking,
+    rejectBooking,
+    refreshData: fetchCounselorData,
   };
 };
+

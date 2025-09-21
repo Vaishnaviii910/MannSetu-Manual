@@ -1,3 +1,4 @@
+// PeerSupport.tsx
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import {
@@ -48,7 +49,6 @@ interface Post {
     full_name: string;
     avatar_url?: string;
   };
-  // extended
   like_count?: number;
   reply_count?: number;
   liked_by_me?: boolean;
@@ -59,6 +59,7 @@ interface Post {
     student_id: string;
     profiles: { full_name: string };
   }[];
+  is_anonymous?: boolean | null;
 }
 
 const PeerSupport = () => {
@@ -68,14 +69,19 @@ const PeerSupport = () => {
   const { register, handleSubmit, reset } = useForm<{
     title: string;
     content: string;
+    isAnonymous?: boolean;
   }>();
   const [selectedForumId, setSelectedForumId] = useState("");
   const [openReplies, setOpenReplies] = useState<Record<string, boolean>>({});
   const [replyInputs, setReplyInputs] = useState<Record<string, string>>({});
   const [loadingReplies, setLoadingReplies] = useState<Record<string, boolean>>({});
 
-  // avoid mutating state array
-  const postsArr = posts ? posts.slice().reverse() : [];
+  // changed here: ensure newest posts appear first (sorted by created_at desc)
+  const postsArr = posts
+    ? posts
+        .slice()
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    : [];
 
   const sidebarItems = [
     { title: "Dashboard", url: "/student-dashboard", icon: Heart },
@@ -130,7 +136,7 @@ const PeerSupport = () => {
     },
   ];
 
-  const handleCreatePost = (data: { title: string; content: string }) => {
+  const handleCreatePost = (data: { title: string; content: string; isAnonymous?: boolean }) => {
     if (!selectedForumId) {
       toast({
         title: "Validation Error",
@@ -139,7 +145,7 @@ const PeerSupport = () => {
       });
       return;
     }
-    createPost(data.title, data.content, selectedForumId);
+    createPost(data.title, data.content, selectedForumId, !!data.isAnonymous);
     reset();
     setSelectedForumId("");
   };
@@ -147,7 +153,6 @@ const PeerSupport = () => {
   const handleToggleReplies = async (postId: string) => {
     const isOpen = !!openReplies[postId];
     if (!isOpen) {
-      // open: lazy-load replies if not present
       const p = posts.find((x) => x.post_id === postId);
       if (!p || !p.replies || p.replies.length === 0) {
         setLoadingReplies((s) => ({ ...s, [postId]: true }));
@@ -179,7 +184,6 @@ const PeerSupport = () => {
       userName="Alex Johnson"
     >
       <div className="space-y-6">
-        {/* Header */}
         <div className="space-y-2">
           <h1 className="text-3xl font-bold flex items-center gap-3">
             <div className="w-10 h-10 bg-gradient-to-br from-accent to-primary rounded-lg flex items-center justify-center">
@@ -202,9 +206,7 @@ const PeerSupport = () => {
 
           <TabsContent value="forum" className="space-y-6">
             <div className="grid lg:grid-cols-4 gap-6">
-              {/* Main Forum */}
               <div className="lg:col-span-3 space-y-6">
-                {/* Create Post */}
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-lg flex items-center gap-2">
@@ -218,7 +220,6 @@ const PeerSupport = () => {
                   </CardHeader>
                   <CardContent>
                     <form onSubmit={handleSubmit(handleCreatePost)} className="space-y-4">
-                      {/* Forum Selection */}
                       <Select onValueChange={setSelectedForumId} value={selectedForumId}>
                         <SelectTrigger className="w-full">
                           <SelectValue placeholder="Select a forum to post in" />
@@ -243,6 +244,10 @@ const PeerSupport = () => {
                             <Shield className="h-3 w-3 mr-1" />
                             Moderated Space
                           </Badge>
+                          <label className="flex items-center gap-2 text-sm">
+                            <input type="checkbox" {...register("isAnonymous")} />
+                            <span>Post anonymously</span>
+                          </label>
                         </div>
                         <Button type="submit">
                           <MessageSquare className="h-4 w-4 mr-2" />
@@ -253,7 +258,6 @@ const PeerSupport = () => {
                   </CardContent>
                 </Card>
 
-                {/* Forum Posts */}
                 <div className="space-y-4">
                   {loading ? (
                     <p>Loading posts...</p>
@@ -270,7 +274,7 @@ const PeerSupport = () => {
                                   </AvatarFallback>
                                 </Avatar>
                                 <div>
-                                  <p className="font-medium text-sm">{post.profiles?.full_name || "Anonymous"}</p>
+                                  <p className="font-medium text-sm">{post.is_anonymous ? "Anonymous" : post.profiles?.full_name || "Anonymous"}</p>
                                   <p className="text-xs text-muted-foreground">{new Date(post.created_at).toLocaleDateString()}</p>
                                 </div>
                               </div>
@@ -311,7 +315,6 @@ const PeerSupport = () => {
                               </Button>
                             </div>
 
-                            {/* Replies section (lazy loaded & minimal UI change) */}
                             {openReplies[post.post_id] && (
                               <div className="mt-3 space-y-3">
                                 {loadingReplies[post.post_id] ? (
@@ -363,9 +366,7 @@ const PeerSupport = () => {
                 </div>
               </div>
 
-              {/* Sidebar */}
               <div className="space-y-6">
-                {/* Community Guidelines */}
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-sm flex items-center gap-2">
@@ -383,7 +384,6 @@ const PeerSupport = () => {
                   </CardContent>
                 </Card>
 
-                {/* Quick Stats */}
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-sm">Community Stats</CardTitle>

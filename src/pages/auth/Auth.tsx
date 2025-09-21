@@ -8,102 +8,133 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, School, User, Users } from 'lucide-react';
+import { Loader2, School, User } from 'lucide-react';
+import * as z from 'zod';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { useToast } from '@/components/ui/use-toast';
+
+// --- Zod Schemas for Validation ---
+const signInSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1, "Password is required"),
+});
+
+const studentSchema = z.object({
+  fullName: z.string().min(2, "Full name is required"),
+  instituteId: z.string().min(1, "Please select an institute"),
+  email: z.string().email(),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  confirmPassword: z.string(),
+}).refine(data => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
+});
+
+const instituteSchema = z.object({
+  instituteName: z.string().min(2, "Institute name is required"),
+  email: z.string().email(),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  confirmPassword: z.string(),
+  address: z.string().min(5, "Address is required"),
+  phone: z.string().min(10, "A valid phone number is required"),
+  website: z.string().url().optional().or(z.literal('')),
+  description: z.string().optional(),
+  verificationDocument: z.any()
+    .refine((files) => files?.length == 1, 'Official document is required.')
+    .refine((files) => files?.[0]?.size <= 5000000, `Max file size is 5MB.`),
+}).refine(data => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
+});
 
 const Auth = () => {
   const [loading, setLoading] = useState(false);
-  const [signInData, setSignInData] = useState({ email: '', password: '' });
-  const [signUpData, setSignUpData] = useState({
-    email: '',
-    password: '',
-    confirmPassword: '',
-    role: 'student' as 'student' | 'counselor' | 'institute',
-    // Student fields
-    fullName: '',
-    instituteId: '',
-    dateOfBirth: '',
-    phone: '',
-    emergencyContact: '',
-    emergencyPhone: '',
-    // Institute fields
-    instituteName: '',
-    address: '',
-    website: '',
-    description: ''
-  });
+  const [activeRole, setActiveRole] = useState<'student' | 'institute'>('student');
   const [institutes, setInstitutes] = useState<any[]>([]);
   const { signIn, signUp, user } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
+
+  const signInForm = useForm<z.infer<typeof signInSchema>>({ resolver: zodResolver(signInSchema), defaultValues: { email: '', password: '' } });
+  const studentForm = useForm<z.infer<typeof studentSchema>>({ resolver: zodResolver(studentSchema), defaultValues: { fullName: '', instituteId: '', email: '', password: '', confirmPassword: '' } });
+  const instituteForm = useForm<z.infer<typeof instituteSchema>>({ resolver: zodResolver(instituteSchema), defaultValues: { instituteName: '', email: '', password: '', confirmPassword: '', address: '', phone: '', website: '', description: '' } });
 
   useEffect(() => {
-    if (user) {
-      navigate('/');
-    }
+    if (user) navigate('/');
   }, [user, navigate]);
 
   useEffect(() => {
+    const fetchInstitutes = async () => {
+      const { data } = await supabase.from('institutes').select('id, institute_name').order('institute_name');
+      setInstitutes(data || []);
+    };
     fetchInstitutes();
   }, []);
 
-  const fetchInstitutes = async () => {
-    const { data } = await supabase
-      .from('institutes')
-      .select('id, institute_name')
-      .order('institute_name');
-    setInstitutes(data || []);
-  };
-
-  const handleSignIn = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const onSignInSubmit = async (values: z.infer<typeof signInSchema>) => {
     setLoading(true);
-    
-    await signIn(signInData.email, signInData.password);
+    await signIn(values.email, values.password);
     setLoading(false);
   };
 
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (signUpData.password !== signUpData.confirmPassword) {
-      alert('Passwords do not match');
+  const onStudentSignUpSubmit = async (values: z.infer<typeof studentSchema>) => {
+    setLoading(true);
+    const { email, password, confirmPassword, ...additionalData } = values;
+    await signUp(email, password, 'student', { ...additionalData, studentId: `STU${new Date().getFullYear()}${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}` });
+    setLoading(false);
+  };
+
+  const onInstituteSignUpSubmit = async (values: z.infer<typeof instituteSchema>) => {
+    setLoading(true);
+    const { email, password, confirmPassword, verificationDocument, ...additionalData } = values;
+  
+    const file = verificationDocument[0];
+    const fileName = `${Date.now()}-${file.name.replace(/\s/g, '_')}`;
+  
+    const { data: uploadData, error: fileError } = await supabase.storage
+      .from('institute-verification-documents')
+      .upload(fileName, file);
+  
+    if (fileError || !uploadData) {
+      toast({
+        title: "File Upload Error",
+        description: `Failed to upload document: ${fileError?.message || 'Unknown error.'}`,
+        variant: "destructive",
+      });
+      setLoading(false);
       return;
     }
-
-    setLoading(true);
-
-    let additionalData = {};
-    
-    if (signUpData.role === 'student') {
-      additionalData = {
-        fullName: signUpData.fullName,
-        instituteId: signUpData.instituteId,
-        dateOfBirth: signUpData.dateOfBirth,
-        phone: signUpData.phone,
-        emergencyContact: signUpData.emergencyContact,
-        emergencyPhone: signUpData.emergencyPhone,
-        studentId: `STU${new Date().getFullYear()}${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`
-      };
-    } else if (signUpData.role === 'institute') {
-      additionalData = {
-        instituteName: signUpData.instituteName,
-        address: signUpData.address,
-        phone: signUpData.phone,
-        website: signUpData.website,
-        description: signUpData.description
-      };
+  
+    // --- THIS IS THE CORRECTED LINE ---
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    if (!supabaseUrl) {
+      toast({
+        title: "Configuration Error",
+        description: "Supabase URL is not configured in your environment variables.",
+        variant: "destructive",
+      });
+      setLoading(false);
+      return;
     }
-
-    await signUp(signUpData.email, signUpData.password, signUpData.role, additionalData);
+  
+    const publicUrl = `${supabaseUrl}/storage/v1/object/public/institute-verification-documents/${uploadData.path}`;
+  
+    const { error: signUpError } = await signUp(email, password, 'institute', {
+      ...additionalData,
+      verification_document_url: publicUrl,
+    });
+  
+    if (signUpError) {
+      toast({
+        title: "Sign Up Error",
+        description: signUpError.message,
+        variant: "destructive",
+      });
+    }
+  
     setLoading(false);
-  };
-
-  const getRoleIcon = (role: string) => {
-    switch (role) {
-      case 'student': return <User className="h-4 w-4" />;
-      case 'counselor': return <Users className="h-4 w-4" />;
-      case 'institute': return <School className="h-4 w-4" />;
-      default: return <User className="h-4 w-4" />;
-    }
   };
 
   return (
@@ -121,204 +152,85 @@ const Auth = () => {
             </TabsList>
             
             <TabsContent value="signin">
-              <form onSubmit={handleSignIn} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="signin-email">Email</Label>
-                  <Input
-                    id="signin-email"
-                    type="email"
-                    value={signInData.email}
-                    onChange={(e) => setSignInData({...signInData, email: e.target.value})}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signin-password">Password</Label>
-                  <Input
-                    id="signin-password"
-                    type="password"
-                    value={signInData.password}
-                    onChange={(e) => setSignInData({...signInData, password: e.target.value})}
-                    required
-                  />
-                </div>
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Sign In
-                </Button>
-              </form>
+              <Form {...signInForm}>
+                <form onSubmit={signInForm.handleSubmit(onSignInSubmit)} className="space-y-4">
+                  <FormField control={signInForm.control} name="email" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl><Input type="email" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={signInForm.control} name="password" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Password</FormLabel>
+                      <FormControl><Input type="password" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Sign In
+                  </Button>
+                </form>
+              </Form>
             </TabsContent>
             
             <TabsContent value="signup">
-              <form onSubmit={handleSignUp} className="space-y-4">
+              <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="role">I am a...</Label>
-                  <Select value={signUpData.role} onValueChange={(value: any) => setSignUpData({...signUpData, role: value})}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
+                  <Label>I am a...</Label>
+                  <Select value={activeRole} onValueChange={(value: 'student' | 'institute') => setActiveRole(value)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="student">
-                        <div className="flex items-center gap-2">
-                          {getRoleIcon('student')}
-                          Student
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="institute">
-                        <div className="flex items-center gap-2">
-                          {getRoleIcon('institute')}
-                          Institute
-                        </div>
-                      </SelectItem>
+                      <SelectItem value="student"><div className="flex items-center gap-2"><User className="h-4 w-4" />Student</div></SelectItem>
+                      <SelectItem value="institute"><div className="flex items-center gap-2"><School className="h-4 w-4" />Institute</div></SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="signup-email">Email</Label>
-                  <Input
-                    id="signup-email"
-                    type="email"
-                    value={signUpData.email}
-                    onChange={(e) => setSignUpData({...signUpData, email: e.target.value})}
-                    required
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="signup-password">Password</Label>
-                  <Input
-                    id="signup-password"
-                    type="password"
-                    value={signUpData.password}
-                    onChange={(e) => setSignUpData({...signUpData, password: e.target.value})}
-                    required
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="confirm-password">Confirm Password</Label>
-                  <Input
-                    id="confirm-password"
-                    type="password"
-                    value={signUpData.confirmPassword}
-                    onChange={(e) => setSignUpData({...signUpData, confirmPassword: e.target.value})}
-                    required
-                  />
-                </div>
-
-                {signUpData.role === 'student' && (
-                  <>
-                    <div className="space-y-2">
-                      <Label htmlFor="full-name">Full Name</Label>
-                      <Input
-                        id="full-name"
-                        value={signUpData.fullName}
-                        onChange={(e) => setSignUpData({...signUpData, fullName: e.target.value})}
-                        required
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="institute">Select Your Institute</Label>
-                      <Select value={signUpData.instituteId} onValueChange={(value) => setSignUpData({...signUpData, instituteId: value})}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Choose your institute" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {institutes.map((institute) => (
-                            <SelectItem key={institute.id} value={institute.id}>
-                              {institute.institute_name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="phone">Phone Number</Label>
-                      <Input
-                        id="phone"
-                        value={signUpData.phone}
-                        onChange={(e) => setSignUpData({...signUpData, phone: e.target.value})}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="emergency-contact">Emergency Contact Name</Label>
-                      <Input
-                        id="emergency-contact"
-                        value={signUpData.emergencyContact}
-                        onChange={(e) => setSignUpData({...signUpData, emergencyContact: e.target.value})}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="emergency-phone">Emergency Contact Phone</Label>
-                      <Input
-                        id="emergency-phone"
-                        value={signUpData.emergencyPhone}
-                        onChange={(e) => setSignUpData({...signUpData, emergencyPhone: e.target.value})}
-                      />
-                    </div>
-                  </>
+                {activeRole === 'student' ? (
+                  <Form {...studentForm} key="student-form">
+                    <form onSubmit={studentForm.handleSubmit(onStudentSignUpSubmit)} className="space-y-4">
+                       <FormField control={studentForm.control} name="fullName" render={({ field }) => (<FormItem><FormLabel>Full Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                       <FormField control={studentForm.control} name="instituteId" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Select Your Institute</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormControl><SelectTrigger><SelectValue placeholder="Choose your institute" /></SelectTrigger></FormControl>
+                              <SelectContent>{institutes.map(inst => (<SelectItem key={inst.id} value={inst.id}>{inst.institute_name}</SelectItem>))}</SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                       )} />
+                       <FormField control={studentForm.control} name="email" render={({ field }) => (<FormItem><FormLabel>Email</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                       <FormField control={studentForm.control} name="password" render={({ field }) => (<FormItem><FormLabel>Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                       <FormField control={studentForm.control} name="confirmPassword" render={({ field }) => (<FormItem><FormLabel>Confirm Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                       <Button type="submit" className="w-full" disabled={loading}>{loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Create Account</Button>
+                    </form>
+                  </Form>
+                ) : (
+                  <Form {...instituteForm} key="institute-form">
+                    <form onSubmit={instituteForm.handleSubmit(onInstituteSignUpSubmit)} className="space-y-4">
+                      <FormField control={instituteForm.control} name="instituteName" render={({ field }) => (<FormItem><FormLabel>Institute Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                      <FormField control={instituteForm.control} name="email" render={({ field }) => (<FormItem><FormLabel>Email</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                      <FormField control={instituteForm.control} name="password" render={({ field }) => (<FormItem><FormLabel>Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                      <FormField control={instituteForm.control} name="confirmPassword" render={({ field }) => (<FormItem><FormLabel>Confirm Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                      <FormField control={instituteForm.control} name="address" render={({ field }) => (<FormItem><FormLabel>Address</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                      <FormField control={instituteForm.control} name="phone" render={({ field }) => (<FormItem><FormLabel>Phone Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                      <FormField control={instituteForm.control} name="website" render={({ field }) => (<FormItem><FormLabel>Website (Optional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                      <FormField control={instituteForm.control} name="description" render={({ field }) => (<FormItem><FormLabel>Description (Optional)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                      <FormField control={instituteForm.control} name="verificationDocument" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Official Document for Verification</FormLabel>
+                          <FormControl><Input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" onChange={(e) => field.onChange(e.target.files)} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
+                      <Button type="submit" className="w-full" disabled={loading}>{loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Create Account</Button>
+                    </form>
+                  </Form>
                 )}
-
-                {signUpData.role === 'institute' && (
-                  <>
-                    <div className="space-y-2">
-                      <Label htmlFor="institute-name">Institute Name</Label>
-                      <Input
-                        id="institute-name"
-                        value={signUpData.instituteName}
-                        onChange={(e) => setSignUpData({...signUpData, instituteName: e.target.value})}
-                        required
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="address">Address</Label>
-                      <Input
-                        id="address"
-                        value={signUpData.address}
-                        onChange={(e) => setSignUpData({...signUpData, address: e.target.value})}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="institute-phone">Phone Number</Label>
-                      <Input
-                        id="institute-phone"
-                        value={signUpData.phone}
-                        onChange={(e) => setSignUpData({...signUpData, phone: e.target.value})}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="website">Website (Optional)</Label>
-                      <Input
-                        id="website"
-                        value={signUpData.website}
-                        onChange={(e) => setSignUpData({...signUpData, website: e.target.value})}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="description">Description (Optional)</Label>
-                      <Input
-                        id="description"
-                        value={signUpData.description}
-                        onChange={(e) => setSignUpData({...signUpData, description: e.target.value})}
-                      />
-                    </div>
-                  </>
-                )}
-
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Create Account
-                </Button>
-              </form>
+              </div>
             </TabsContent>
           </Tabs>
         </CardContent>

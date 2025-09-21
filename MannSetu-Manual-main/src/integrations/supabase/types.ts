@@ -158,6 +158,30 @@ export type Database = {
           },
         ]
       }
+      chat_history: {
+        Row: {
+          created_at: string
+          id: string
+          message: string
+          sender: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message: string
+          sender: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message?: string
+          sender?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       counselors: {
         Row: {
           bio: string | null
@@ -214,6 +238,64 @@ export type Database = {
           },
         ]
       }
+      forum_likes: {
+        Row: {
+          created_at: string | null
+          id: string
+          post_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          post_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          post_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "forum_likes_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "forum_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      forum_post_reactions: {
+        Row: {
+          created_at: string | null
+          id: string
+          post_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          post_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          post_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "forum_post_reactions_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "forum_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       forum_posts: {
         Row: {
           content: string
@@ -224,6 +306,7 @@ export type Database = {
           student_id: string
           title: string
           updated_at: string
+          user_id: string | null
         }
         Insert: {
           content: string
@@ -234,6 +317,7 @@ export type Database = {
           student_id: string
           title: string
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
           content?: string
@@ -244,6 +328,7 @@ export type Database = {
           student_id?: string
           title?: string
           updated_at?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -306,6 +391,47 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      gad_7_tests: {
+        Row: {
+          answers: Json | null
+          created_at: string
+          recommendations: string | null
+          score: number | null
+          severity_level: string | null
+          student_id: string
+          test_date: string | null
+          version: number | null
+        }
+        Insert: {
+          answers?: Json | null
+          created_at?: string
+          recommendations?: string | null
+          score?: number | null
+          severity_level?: string | null
+          student_id?: string
+          test_date?: string | null
+          version?: number | null
+        }
+        Update: {
+          answers?: Json | null
+          created_at?: string
+          recommendations?: string | null
+          score?: number | null
+          severity_level?: string | null
+          student_id?: string
+          test_date?: string | null
+          version?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gad_7_tests_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: true
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       institutes: {
         Row: {
@@ -446,6 +572,83 @@ export type Database = {
         }
         Relationships: []
       }
+      reminders: {
+        Row: {
+          created_at: string
+          due_date: string | null
+          id: string
+          is_completed: boolean | null
+          student_id: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          is_completed?: boolean | null
+          student_id: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          is_completed?: boolean | null
+          student_id?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reminders_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resources: {
+        Row: {
+          category: string | null
+          content: Json
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean | null
+          metadata: Json | null
+          title: string
+          type: Database["public"]["Enums"]["resource_type"]
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          content: Json
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          metadata?: Json | null
+          title: string
+          type: Database["public"]["Enums"]["resource_type"]
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          content?: Json
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          metadata?: Json | null
+          title?: string
+          type?: Database["public"]["Enums"]["resource_type"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       session_records: {
         Row: {
           booking_id: string
@@ -501,6 +704,7 @@ export type Database = {
           institute_id: string
           phone: string | null
           student_id: string
+          todays_focus: string | null
           updated_at: string
           user_id: string
         }
@@ -514,6 +718,7 @@ export type Database = {
           institute_id: string
           phone?: string | null
           student_id: string
+          todays_focus?: string | null
           updated_at?: string
           user_id: string
         }
@@ -527,6 +732,7 @@ export type Database = {
           institute_id?: string
           phone?: string | null
           student_id?: string
+          todays_focus?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -616,6 +822,7 @@ export type Database = {
         | "completed"
         | "cancelled"
       mood_type: "very_happy" | "happy" | "neutral" | "sad" | "very_sad"
+      resource_type: "article" | "video" | "audio"
       user_role: "student" | "counselor" | "institute"
     }
     CompositeTypes: {
@@ -753,6 +960,7 @@ export const Constants = {
         "cancelled",
       ],
       mood_type: ["very_happy", "happy", "neutral", "sad", "very_sad"],
+      resource_type: ["article", "video", "audio"],
       user_role: ["student", "counselor", "institute"],
     },
   },

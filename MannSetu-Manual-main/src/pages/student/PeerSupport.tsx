@@ -1,35 +1,98 @@
+// PeerSupport.tsx
 import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useForm } from "react-hook-form";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  Users, 
-  MessageCircle, 
-  Heart, 
-  Calendar, 
+import {
+  Users,
+  MessageCircle,
+  Heart,
+  Calendar,
   Brain,
   Plus,
   ThumbsUp,
   MessageSquare,
   Clock,
   Shield,
-  Zap
+  Zap,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { usePeerSupport } from "@/hooks/usePeerSupport";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+interface Post {
+  post_id: string;
+  title: string;
+  content: string;
+  created_at: string;
+  student_id: string;
+  forum_id: string;
+  profiles: {
+    full_name: string;
+    avatar_url?: string;
+  };
+  like_count?: number;
+  reply_count?: number;
+  liked_by_me?: boolean;
+  replies?: {
+    reply_id: string;
+    content: string;
+    created_at: string;
+    student_id: string;
+    profiles: { full_name: string };
+  }[];
+  is_anonymous?: boolean | null;
+}
 
 const PeerSupport = () => {
-  const [newPost, setNewPost] = useState("");
   const { toast } = useToast();
+  const { posts, forums, loading, createPost, toggleReaction, fetchReplies, createReply } = usePeerSupport();
+
+  const { register, handleSubmit, reset } = useForm<{
+    title: string;
+    content: string;
+    isAnonymous?: boolean;
+  }>();
+  const [selectedForumId, setSelectedForumId] = useState("");
+  const [openReplies, setOpenReplies] = useState<Record<string, boolean>>({});
+  const [replyInputs, setReplyInputs] = useState<Record<string, string>>({});
+  const [loadingReplies, setLoadingReplies] = useState<Record<string, boolean>>({});
+
+  // changed here: ensure newest posts appear first (sorted by created_at desc)
+  const postsArr = posts
+    ? posts
+        .slice()
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    : [];
 
   const sidebarItems = [
     { title: "Dashboard", url: "/student-dashboard", icon: Heart },
     { title: "AI Chatbot", url: "/student/chatbot", icon: MessageCircle },
     { title: "Book Session", url: "/student/book-session", icon: Calendar },
-    { title: "Peer Support", url: "/student/peer-support", icon: Users, isActive: true },
+    {
+      title: "Peer Support",
+      url: "/student/peer-support",
+      icon: Users,
+      isActive: true,
+    },
     { title: "Resources Hub", url: "/student/resources", icon: Brain },
   ];
 
@@ -39,9 +102,10 @@ const PeerSupport = () => {
       name: "Exam Anxiety Support",
       members: 234,
       category: "Academic Stress",
-      description: "A safe space to share exam-related stress and coping strategies",
+      description:
+        "A safe space to share exam-related stress and coping strategies",
       lastActivity: "2 hours ago",
-      isJoined: true
+      isJoined: true,
     },
     {
       id: 2,
@@ -50,7 +114,7 @@ const PeerSupport = () => {
       category: "Social Support",
       description: "Connect with fellow new students and share your experiences",
       lastActivity: "4 hours ago",
-      isJoined: false
+      isJoined: false,
     },
     {
       id: 3,
@@ -59,7 +123,7 @@ const PeerSupport = () => {
       category: "Wellness",
       description: "Daily mindfulness practice and meditation support",
       lastActivity: "1 day ago",
-      isJoined: true
+      isJoined: true,
     },
     {
       id: 4,
@@ -68,68 +132,58 @@ const PeerSupport = () => {
       category: "Academic Support",
       description: "Find study partners and academic support",
       lastActivity: "30 mins ago",
-      isJoined: false
-    }
+      isJoined: false,
+    },
   ];
 
-  const forumPosts = [
-    {
-      id: 1,
-      author: "StudentHelper23",
-      title: "Tips for managing pre-exam anxiety?",
-      content: "I have my final exams next week and I'm feeling really overwhelmed. Has anyone found effective ways to calm down before big tests?",
-      category: "Academic Stress",
-      timestamp: "2 hours ago",
-      likes: 15,
-      replies: 8,
-      isAnonymous: true
-    },
-    {
-      id: 2,
-      author: "MindfulMike",
-      title: "Starting a morning meditation group",
-      content: "Would anyone be interested in joining a small group for 15-minute morning meditation sessions? We could meet virtually every weekday.",
-      category: "Wellness",
-      timestamp: "5 hours ago",
-      likes: 23,
-      replies: 12,
-      isAnonymous: false
-    },
-    {
-      id: 3,
-      author: "Anonymous_Student",
-      title: "Dealing with homesickness",
-      content: "This is my first year away from home and I'm struggling with feeling lonely and missing my family. Any advice would be appreciated.",
-      category: "Social Support",
-      timestamp: "1 day ago",
-      likes: 31,
-      replies: 18,
-      isAnonymous: true
-    }
-  ];
-
-  const handleCreatePost = () => {
-    if (!newPost.trim()) {
+  const handleCreatePost = (data: { title: string; content: string; isAnonymous?: boolean }) => {
+    if (!selectedForumId) {
       toast({
-        title: "Empty post",
-        description: "Please write something before posting.",
-        variant: "destructive"
+        title: "Validation Error",
+        description: "Please select a forum before posting.",
+        variant: "destructive",
       });
       return;
     }
+    createPost(data.title, data.content, selectedForumId, !!data.isAnonymous);
+    reset();
+    setSelectedForumId("");
+  };
 
-    toast({
-      title: "Post created successfully!",
-      description: "Your post has been shared with the community.",
-    });
+  const handleToggleReplies = async (postId: string) => {
+    const isOpen = !!openReplies[postId];
+    if (!isOpen) {
+      const p = posts.find((x) => x.post_id === postId);
+      if (!p || !p.replies || p.replies.length === 0) {
+        setLoadingReplies((s) => ({ ...s, [postId]: true }));
+        await fetchReplies(postId);
+        setLoadingReplies((s) => ({ ...s, [postId]: false }));
+      }
+    }
+    setOpenReplies((s) => ({ ...s, [postId]: !isOpen }));
+  };
 
-    setNewPost("");
+  const submitReply = async (postId: string) => {
+    const content = (replyInputs[postId] || "").trim();
+    if (!content) {
+      toast({
+        title: "Validation",
+        description: "Reply cannot be empty.",
+        variant: "destructive",
+      });
+      return;
+    }
+    await createReply(postId, content, false);
+    setReplyInputs((s) => ({ ...s, [postId]: "" }));
   };
 
   return (
-    <DashboardLayout sidebarItems={sidebarItems} userType="student" userName="Alex Johnson">
+    <DashboardLayout
+      sidebarItems={sidebarItems}
+      userType="student"
+      userName="Alex Johnson"
+    >
       <div className="space-y-6">
-        {/* Header */}
         <div className="space-y-2">
           <h1 className="text-3xl font-bold flex items-center gap-3">
             <div className="w-10 h-10 bg-gradient-to-br from-accent to-primary rounded-lg flex items-center justify-center">
@@ -138,7 +192,8 @@ const PeerSupport = () => {
             Peer Support Community
           </h1>
           <p className="text-muted-foreground">
-            Connect with fellow students in a safe, moderated environment for mutual support
+            Connect with fellow students in a safe, moderated environment for
+            mutual support
           </p>
         </div>
 
@@ -151,9 +206,7 @@ const PeerSupport = () => {
 
           <TabsContent value="forum" className="space-y-6">
             <div className="grid lg:grid-cols-4 gap-6">
-              {/* Main Forum */}
               <div className="lg:col-span-3 space-y-6">
-                {/* Create Post */}
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-lg flex items-center gap-2">
@@ -161,84 +214,159 @@ const PeerSupport = () => {
                       Share with the Community
                     </CardTitle>
                     <CardDescription>
-                      Share your thoughts, ask questions, or offer support to others
+                      Share your thoughts, ask questions, or offer support to
+                      others
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <Textarea
-                      value={newPost}
-                      onChange={(e) => setNewPost(e.target.value)}
-                      placeholder="What's on your mind? Remember, this is a supportive space..."
-                      className="min-h-[120px]"
-                    />
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-xs">
-                          <Shield className="h-3 w-3 mr-1" />
-                          Moderated Space
-                        </Badge>
+                  <CardContent>
+                    <form onSubmit={handleSubmit(handleCreatePost)} className="space-y-4">
+                      <Select onValueChange={setSelectedForumId} value={selectedForumId}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select a forum to post in" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {forums.map((forum) => (
+                            <SelectItem key={forum.id} value={forum.id}>
+                              {forum.title}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Input placeholder="Title of your post" {...register("title", { required: true })} />
+                      <Textarea
+                        placeholder="What's on your mind? Remember, this is a supportive space..."
+                        className="min-h-[120px]"
+                        {...register("content", { required: true })}
+                      />
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-xs">
+                            <Shield className="h-3 w-3 mr-1" />
+                            Moderated Space
+                          </Badge>
+                          <label className="flex items-center gap-2 text-sm">
+                            <input type="checkbox" {...register("isAnonymous")} />
+                            <span>Post anonymously</span>
+                          </label>
+                        </div>
+                        <Button type="submit">
+                          <MessageSquare className="h-4 w-4 mr-2" />
+                          Post Anonymously
+                        </Button>
                       </div>
-                      <Button onClick={handleCreatePost}>
-                        <MessageSquare className="h-4 w-4 mr-2" />
-                        Post Anonymously
-                      </Button>
-                    </div>
+                    </form>
                   </CardContent>
                 </Card>
 
-                {/* Forum Posts */}
                 <div className="space-y-4">
-                  {forumPosts.map((post) => (
-                    <Card key={post.id} className="hover:shadow-md transition-shadow">
-                      <CardContent className="p-6">
-                        <div className="space-y-4">
-                          <div className="flex items-start justify-between">
-                            <div className="flex items-center space-x-3">
-                              <Avatar className="h-8 w-8">
-                                <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                                  {post.isAnonymous ? "?" : post.author[0]}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div>
-                                <p className="font-medium text-sm">{post.author}</p>
-                                <p className="text-xs text-muted-foreground">{post.timestamp}</p>
+                  {loading ? (
+                    <p>Loading posts...</p>
+                  ) : (
+                    postsArr.map((post) => (
+                      <Card key={post.post_id} className="hover:shadow-md transition-shadow">
+                        <CardContent className="p-6">
+                          <div className="space-y-4">
+                            <div className="flex items-start justify-between">
+                              <div className="flex items-center space-x-3">
+                                <Avatar className="h-8 w-8">
+                                  <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                                    {post.profiles?.full_name ? post.profiles.full_name[0] : "?"}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div>
+                                  <p className="font-medium text-sm">{post.is_anonymous ? "Anonymous" : post.profiles?.full_name || "Anonymous"}</p>
+                                  <p className="text-xs text-muted-foreground">{new Date(post.created_at).toLocaleDateString()}</p>
+                                </div>
                               </div>
+                              <Badge variant="secondary" className="text-xs">
+                                {forums.find((f) => f.id === post.forum_id)?.title || "General"}
+                              </Badge>
                             </div>
-                            <Badge variant="secondary" className="text-xs">
-                              {post.category}
-                            </Badge>
-                          </div>
 
-                          <div>
-                            <h3 className="font-semibold mb-2">{post.title}</h3>
-                            <p className="text-muted-foreground leading-relaxed">{post.content}</p>
-                          </div>
+                            <div>
+                              <h3 className="font-semibold mb-2">{post.title}</h3>
+                              <p className="text-muted-foreground leading-relaxed">{post.content}</p>
+                            </div>
 
-                          <div className="flex items-center justify-between pt-2 border-t">
-                            <div className="flex items-center space-x-4">
-                              <Button variant="ghost" size="sm" className="text-xs">
-                                <ThumbsUp className="h-3 w-3 mr-1" />
-                                {post.likes} Helpful
-                              </Button>
-                              <Button variant="ghost" size="sm" className="text-xs">
-                                <MessageSquare className="h-3 w-3 mr-1" />
-                                {post.replies} Replies
+                            <div className="flex items-center justify-between pt-2 border-t">
+                              <div className="flex items-center space-x-4">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-xs"
+                                  onClick={() => toggleReaction(post.post_id)}
+                                >
+                                  <ThumbsUp className={`h-3 w-3 mr-1 ${post.liked_by_me ? "text-primary" : ""}`} />
+                                  {post.like_count || 0} Helpful
+                                </Button>
+
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-xs"
+                                  onClick={() => handleToggleReplies(post.post_id)}
+                                >
+                                  <MessageSquare className="h-3 w-3 mr-1" />
+                                  {post.reply_count || 0} Replies
+                                </Button>
+                              </div>
+                              <Button variant="outline" size="sm">
+                                Join Discussion
                               </Button>
                             </div>
-                            <Button variant="outline" size="sm">
-                              Join Discussion
-                            </Button>
+
+                            {openReplies[post.post_id] && (
+                              <div className="mt-3 space-y-3">
+                                {loadingReplies[post.post_id] ? (
+                                  <p>Loading replies...</p>
+                                ) : (
+                                  <>
+                                    {post.replies && post.replies.length > 0 ? (
+                                      post.replies.map((r) => (
+                                        <div key={r.reply_id} className="p-3 border rounded">
+                                          <div className="flex justify-between items-start">
+                                            <div>
+                                              <p className="text-sm font-medium">{r.profiles?.full_name || "Anonymous"}</p>
+                                              <p className="text-xs text-muted-foreground">{new Date(r.created_at).toLocaleString()}</p>
+                                            </div>
+                                          </div>
+                                          <div className="mt-2 text-sm text-muted-foreground">{r.content}</div>
+                                        </div>
+                                      ))
+                                    ) : (
+                                      <p className="text-sm text-muted-foreground">No replies yet. Be the first to reply.</p>
+                                    )}
+
+                                    <form
+                                      onSubmit={(e) => {
+                                        e.preventDefault();
+                                        submitReply(post.post_id);
+                                      }}
+                                      className="flex gap-2 mt-2"
+                                    >
+                                      <Textarea
+                                        value={replyInputs[post.post_id] || ""}
+                                        onChange={(e) => setReplyInputs((s) => ({ ...s, [post.post_id]: e.target.value }))}
+                                        placeholder="Write a supportive reply..."
+                                        className="flex-1 min-h-[60px]"
+                                      />
+                                      <Button type="submit" size="sm">
+                                        Reply
+                                      </Button>
+                                    </form>
+                                  </>
+                                )}
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                        </CardContent>
+                      </Card>
+                    ))
+                  )}
                 </div>
               </div>
 
-              {/* Sidebar */}
               <div className="space-y-6">
-                {/* Community Guidelines */}
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-sm flex items-center gap-2">
@@ -256,7 +384,6 @@ const PeerSupport = () => {
                   </CardContent>
                 </Card>
 
-                {/* Quick Stats */}
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-sm">Community Stats</CardTitle>
@@ -268,8 +395,8 @@ const PeerSupport = () => {
                         <div className="text-xs text-muted-foreground">Active Members</div>
                       </div>
                       <div className="p-3 rounded-lg bg-success-soft">
-                        <div className="text-lg font-bold text-success">89</div>
-                        <div className="text-xs text-muted-foreground">Posts Today</div>
+                        <div className="text-lg font-bold text-success">{posts.length}</div>
+                        <div className="text-xs text-muted-foreground">Posts</div>
                       </div>
                     </div>
                   </CardContent>
@@ -325,7 +452,8 @@ const PeerSupport = () => {
                   Upcoming Virtual Events
                 </CardTitle>
                 <CardDescription>
-                  Join live events and workshops to connect with peers and learn new coping strategies
+                  Join live events and workshops to connect with peers and learn
+                  new coping strategies
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -336,7 +464,8 @@ const PeerSupport = () => {
                       <Badge>Tomorrow</Badge>
                     </div>
                     <p className="text-sm text-muted-foreground mb-3">
-                      Learn practical techniques to manage academic stress with Dr. Sarah Wilson
+                      Learn practical techniques to manage academic stress with
+                      Dr. Sarah Wilson
                     </p>
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-primary">2:00 PM - 3:00 PM</span>
@@ -350,11 +479,14 @@ const PeerSupport = () => {
                       <Badge variant="secondary">Weekly</Badge>
                     </div>
                     <p className="text-sm text-muted-foreground mb-3">
-                      Weekly peer-led discussion groups in a safe, supportive environment
+                      Weekly peer-led discussion groups in a safe, supportive
+                      environment
                     </p>
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-primary">Fridays 4:00 PM</span>
-                      <Button size="sm" variant="outline">Join Circle</Button>
+                      <Button size="sm" variant="outline">
+                        Join Circle
+                      </Button>
                     </div>
                   </div>
                 </div>

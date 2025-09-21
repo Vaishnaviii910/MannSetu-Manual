@@ -1,0 +1,7 @@
+project_id = "zxadillanylcomcnzkgj"
+
+[functions.generate-ai-response]
+enabled = true
+verify_jwt = true
+import_map = "./functions/generate-ai-response/deno.json"
+entrypoint = "./functions/generate-ai-response/index.ts"

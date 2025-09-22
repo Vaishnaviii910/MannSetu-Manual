@@ -145,15 +145,18 @@ const BookSession = () => {
                                 ) : availableSlots.length > 0 ? (
                                     <div className="grid grid-cols-2 gap-2">
                                         {availableSlots.map((slot) => (
-                                            <Button
-                                                key={slot.id}
-                                                variant={selectedTime === slot.id ? "default" : "outline"}
-                                                onClick={() => setSelectedTime(slot.id)}
-                                                className="flex flex-col h-auto py-2"
-                                            >
-                                                <span className="font-semibold">{format(new Date(`1970-01-01T${slot.start_time}`), 'p')}</span>
-                                            </Button>
-                                        ))}
+  <Button
+    key={slot.id}
+    variant={selectedTime === slot.id ? "default" : "outline"}
+    onClick={() => setSelectedTime(slot.id)}
+    className="flex flex-col h-auto py-2"
+  >
+    <span className="font-semibold">
+      {format(new Date(`1970-01-01T${slot.start_time}`), 'p')}
+    </span>
+    <small className="text-xs">{slot.slot_date}</small>
+  </Button>
+))}
                                     </div>
                                 ) : (
                                     <p className="text-center text-muted-foreground py-8">

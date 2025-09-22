@@ -25,62 +25,100 @@ export const useBookingSystem = () => {
     }
   }, [user]);
 
-  const getAvailableSlots = useCallback(async (counselorId: string, selectedDate: string) => {
+  const getAvailableSlots = useCallback(
+  async (counselorId: string, selectedDate: string | Date) => {
     try {
       setLoadingSlots(true);
       setAvailableSlots([]);
-      
-      // ** NEW: Call the database function to generate slots before fetching. **
-      await supabase.rpc('generate_time_slots_for_date', {
-        p_counselor_id: counselorId,
-        p_date: selectedDate
-      });
+
+      // normalize date to YYYY-MM-DD
+      const slotDate =
+        typeof selectedDate === "string"
+          ? selectedDate
+          : selectedDate.toISOString().split("T")[0];
 
       const { data: slots, error } = await supabase
-        .from('time_slots')
-        .select('*')
-        .eq('counselor_id', counselorId)
-        .eq('slot_date', selectedDate)
-        .eq('status', 'available')
-        .order('start_time');
-      
+        .rpc('get_unbooked_slots_for_date', {
+          p_counselor_id: counselorId,
+          p_date: slotDate
+        });
+
       if (error) throw error;
-      setAvailableSlots(slots || []);
-    } catch (error) {
-      console.error('Error fetching available slots:', error);
+
+      // ensure consistent ids for UI; RPC returns slot_key
+      const normalized = (slots || []).map((s: any) => ({
+        id: s.slot_key, // unique deterministic id
+        counselor_id: s.counselor_id,
+        slot_date: s.slot_date,
+        start_time: s.start_time,
+        end_time: s.end_time
+      }));
+
+      setAvailableSlots(normalized);
+      return normalized;
+    } catch (err) {
+      console.error("Error fetching available slots:", err);
       setAvailableSlots([]);
+      return [];
     } finally {
       setLoadingSlots(false);
     }
-  }, []);
+  },
+  [supabase, setLoadingSlots, setAvailableSlots]
+);
 
-  const createBooking = async (counselorId: string, timeSlotId: string, studentNotes?: string) => {
-    if (!user) return { error: 'Not authenticated' };
-    try {
-      const { data: student } = await supabase.from('students').select('id').eq('user_id', user.id).single();
-      if (!student) return { error: 'Student not found' };
-      
-      const { data: slotData } = await supabase.from('time_slots').select('*').eq('id', timeSlotId).single();
-      if (!slotData) return { error: 'Time slot not found' };
 
-      const { error } = await supabase.from('bookings').insert({
-        student_id: student.id,
-        counselor_id: counselorId,
-        time_slot_id: timeSlotId,
-        booking_date: slotData.slot_date,
-        start_time: slotData.start_time,
-        end_time: slotData.end_time,
-        student_notes: studentNotes,
-        status: 'pending'
-      });
-      if (error) throw error;
-      
-      await supabase.from('time_slots').update({ status: 'pending' }).eq('id', timeSlotId);
-      return { error: null };
-    } catch (error) {
-      return { error };
+
+  const createBooking = async (
+  counselorId: string,
+  slotIdOrStartTime: string, // we accept slot_key or start_time depending on your UI
+  studentNotes?: string
+) => {
+  if (!user) return { error: 'Not authenticated' };
+  try {
+    // fetch student id
+    const { data: student, error: studentErr } = await supabase
+      .from('students')
+      .select('id')
+      .eq('user_id', user.id)
+      .single();
+    if (studentErr || !student) return { error: studentErr || 'Student not found' };
+
+    // if you used slot_key as id, parse it: counselorId|YYYY-MM-DD|HH:MM:SS
+    const parts = slotIdOrStartTime.split('|');
+    let slotDate: string;
+    let slotStartTime: string;
+    if (parts.length === 3) {
+      // slot_key format
+      [, slotDate, slotStartTime] = parts;
+    } else {
+      // older flow: assume slotIdOrStartTime is actual time string and you have selectedDate in state
+      // make sure to pass slotDate from your UI in that case
+      return { error: 'Invalid slot identifier' };
     }
-  };
+
+    // call atomic booking RPC
+    const { data: bookingId, error: rpcErr } = await supabase.rpc('create_booking_from_generated_slot', {
+      p_student_id: student.id,
+      p_counselor_id: counselorId,
+      p_slot_date: slotDate,
+      p_start_time: slotStartTime,
+      p_student_notes: studentNotes ?? ''
+    });
+
+    if (rpcErr) {
+      // RPC may raise 'Slot already booked' exception which becomes rpcErr
+      throw rpcErr;
+    }
+
+    // success
+    return { error: null, bookingId };
+  } catch (error) {
+    console.error('Booking error:', error);
+    return { error };
+  }
+};
+
 
   useEffect(() => {
     getCounselorsForStudent();

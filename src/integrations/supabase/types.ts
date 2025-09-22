@@ -12,31 +12,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "13.0.5"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       audit_logs: {
@@ -464,7 +439,7 @@ export type Database = {
       gad_7_tests: {
         Row: {
           answers: Json | null
-          created_at: string
+          id: string
           recommendations: string | null
           score: number | null
           severity_level: string | null
@@ -474,7 +449,7 @@ export type Database = {
         }
         Insert: {
           answers?: Json | null
-          created_at?: string
+          id?: string
           recommendations?: string | null
           score?: number | null
           severity_level?: string | null
@@ -484,7 +459,7 @@ export type Database = {
         }
         Update: {
           answers?: Json | null
-          created_at?: string
+          id?: string
           recommendations?: string | null
           score?: number | null
           severity_level?: string | null
@@ -496,7 +471,7 @@ export type Database = {
           {
             foreignKeyName: "gad_7_tests_student_id_fkey"
             columns: ["student_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "students"
             referencedColumns: ["id"]
           },
@@ -512,6 +487,8 @@ export type Database = {
           phone: string | null
           updated_at: string
           user_id: string
+          verification_document_url: string | null
+          verification_status: string | null
           website: string | null
         }
         Insert: {
@@ -523,6 +500,8 @@ export type Database = {
           phone?: string | null
           updated_at?: string
           user_id: string
+          verification_document_url?: string | null
+          verification_status?: string | null
           website?: string | null
         }
         Update: {
@@ -534,6 +513,8 @@ export type Database = {
           phone?: string | null
           updated_at?: string
           user_id?: string
+          verification_document_url?: string | null
+          verification_status?: string | null
           website?: string | null
         }
         Relationships: []
@@ -861,6 +842,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_booking_from_generated_slot: {
+        Args: {
+          p_counselor_id: string
+          p_slot_date: string
+          p_start_time: string
+          p_student_id: string
+          p_student_notes: string
+        }
+        Returns: string
+      }
       create_counselor_profile: {
         Args: {
           bio: string
@@ -882,9 +873,23 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      generate_time_slots: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       generate_time_slots_for_date: {
         Args: { p_counselor_id: string; p_date: string }
         Returns: undefined
+      }
+      get_unbooked_slots_for_date: {
+        Args: { p_counselor_id: string; p_date: string }
+        Returns: {
+          counselor_id: string
+          end_time: string
+          slot_date: string
+          slot_key: string
+          start_time: string
+        }[]
       }
       get_user_institute_id: {
         Args: Record<PropertyKey, never>
@@ -893,6 +898,10 @@ export type Database = {
       get_user_role: {
         Args: Record<PropertyKey, never>
         Returns: Database["public"]["Enums"]["user_role"]
+      }
+      handle_schedule_update: {
+        Args: { p_counselor_id: string }
+        Returns: undefined
       }
     }
     Enums: {
@@ -1031,9 +1040,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       availability_status: ["available", "pending", "booked", "blocked"],

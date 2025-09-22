@@ -7,21 +7,22 @@ import { Button } from "../../components/ui/button";
 import { Textarea } from "../../components/ui/textarea";
 import { useBookingSystem } from "../../hooks/useBookingSystem";
 import { useToast } from "../../hooks/use-toast";
-import { BarChart3, Calendar as CalendarIcon, Heart, Users, BookOpen, MessageSquare, Loader2, CheckCircle } from "lucide-react";
+import { useStudentData } from "@/hooks/useStudentData";
+import { Brain, Calendar as CalendarIcon, Heart, Users, BookOpen, MessageCircle, Loader2, CheckCircle } from "lucide-react";
 import { format } from "date-fns";
-import { Header } from "@radix-ui/react-accordion";
 
 const BookSession = () => {
-    const { 
-        counselors, 
-        availableSlots, 
-        loading, 
-        loadingSlots, 
-        getCounselorsForStudent, 
-        getAvailableSlots, 
-        createBooking 
+    const {
+        counselors,
+        availableSlots,
+        loading,
+        loadingSlots,
+        getCounselorsForStudent,
+        getAvailableSlots,
+        createBooking
     } = useBookingSystem();
     const { toast } = useToast();
+    const { studentData } = useStudentData();
 
     const [selectedCounselor, setSelectedCounselor] = useState<string | null>(null);
     const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
@@ -30,12 +31,13 @@ const BookSession = () => {
     const [isBooking, setIsBooking] = useState(false);
 
     const sidebarItems = [
-        { title: "Dashboard", url: "/student-dashboard", icon: BarChart3 },
+        { title: "Dashboard", url: "/student-dashboard", icon: Heart },
+        { title: "Mental Health Checkup", url: "/student/mental-health-checkup", icon: Brain },
+        { title: "AI Chatbot", url: "/student/chatbot", icon: MessageCircle },
         { title: "Book Session", url: "/student/book-session", icon: CalendarIcon, isActive: true },
-        { title: "Mental Health Checkup", url: "/student/mental-health-checkup", icon: Heart },
+        { title: "My Bookings", url: "/student/my-bookings", icon: CalendarIcon },
         { title: "Peer Support", url: "/student/peer-support", icon: Users },
         { title: "Resources Hub", url: "/student/resources", icon: BookOpen },
-        { title: "AI Chatbot", url: "/student/chatbot", icon: MessageSquare },
     ];
 
     useEffect(() => {
@@ -81,7 +83,7 @@ const BookSession = () => {
     };
 
     return (
-        <DashboardLayout sidebarItems={sidebarItems} userType="student" userName="Student">
+        <DashboardLayout sidebarItems={sidebarItems} userType="student" userName={studentData?.full_name || "Student"}>
             <div className="space-y-6">
                 <Card>
                     <CardHeader>
@@ -145,18 +147,17 @@ const BookSession = () => {
                                 ) : availableSlots.length > 0 ? (
                                     <div className="grid grid-cols-2 gap-2">
                                         {availableSlots.map((slot) => (
-  <Button
-    key={slot.id}
-    variant={selectedTime === slot.id ? "default" : "outline"}
-    onClick={() => setSelectedTime(slot.id)}
-    className="flex flex-col h-auto py-2"
-  >
-    <span className="font-semibold">
-      {format(new Date(`1970-01-01T${slot.start_time}`), 'p')}
-    </span>
-    <small className="text-xs">{slot.slot_date}</small>
-  </Button>
-))}
+                                          <Button
+                                            key={slot.id}
+                                            variant={selectedTime === slot.id ? "default" : "outline"}
+                                            onClick={() => setSelectedTime(slot.id)}
+                                            className="flex flex-col h-auto py-2"
+                                          >
+                                            <span className="font-semibold">
+                                              {format(new Date(`1970-01-01T${slot.start_time}`), 'p')}
+                                            </span>
+                                          </Button>
+                                        ))}
                                     </div>
                                 ) : (
                                     <p className="text-center text-muted-foreground py-8">
@@ -191,4 +192,3 @@ const BookSession = () => {
 };
 
 export default BookSession;
-

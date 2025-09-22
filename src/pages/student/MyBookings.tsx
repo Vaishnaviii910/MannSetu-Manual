@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { useStudentData } from '@/hooks/useStudentData';
 import { useToast } from '@/hooks/use-toast';
-import { BarChart3, Calendar as CalendarIcon, Heart, Users, BookOpen, MessageSquare, Clock, X, Loader2, AlertTriangle } from 'lucide-react';
+import { Brain, Calendar as CalendarIcon, Heart, Users, BookOpen, MessageCircle, Clock, X, Loader2, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
 import { Link } from 'react-router-dom';
 
@@ -78,18 +78,18 @@ const BookingCard = ({ booking, onCancel }: { booking: any, onCancel: () => void
 
 
 const MyBookings = () => {
-  const { bookings, loading, cancelBooking } = useStudentData();
+  const { studentData, bookings, loading, cancelBooking } = useStudentData();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const sidebarItems = [
-    { title: "Dashboard", url: "/student-dashboard", icon: BarChart3 },
+    { title: "Dashboard", url: "/student-dashboard", icon: Heart },
+    { title: "Mental Health Checkup", url: "/student/mental-health-checkup", icon: Brain },
+    { title: "AI Chatbot", url: "/student/chatbot", icon: MessageCircle },
+    { title: "Book Session", url: "/student/book-session", icon: CalendarIcon },
     { title: "My Bookings", url: "/student/my-bookings", icon: CalendarIcon, isActive: true },
-    { title: "Book a Session", url: "/student/book-session", icon: CalendarIcon },
-    { title: "Mental Health Checkup", url: "/student/mental-health-checkup", icon: Heart },
     { title: "Peer Support", url: "/student/peer-support", icon: Users },
     { title: "Resources Hub", url: "/student/resources", icon: BookOpen },
-    { title: "AI Chatbot", url: "/student/chatbot", icon: MessageSquare },
   ];
 
   const handleCancel = async (bookingId: string, timeSlotId: string) => {
@@ -112,7 +112,7 @@ const MyBookings = () => {
   }, [bookings]);
 
   return (
-    <DashboardLayout sidebarItems={sidebarItems} userType="student" userName="Student">
+    <DashboardLayout sidebarItems={sidebarItems} userType="student" userName={studentData?.full_name || "Student"}>
         <div className="space-y-6">
             <Card>
                 <CardHeader>
@@ -136,10 +136,10 @@ const MyBookings = () => {
                         <TabsContent value="upcoming" className="space-y-4">
                             {filteredBookings.upcoming.length > 0 ? (
                                 filteredBookings.upcoming.map(booking => (
-                                    <BookingCard 
-                                        key={booking.id} 
-                                        booking={booking} 
-                                        onCancel={() => handleCancel(booking.id, booking.time_slot_id)} 
+                                    <BookingCard
+                                        key={booking.id}
+                                        booking={booking}
+                                        onCancel={() => handleCancel(booking.id, booking.time_slot_id)}
                                     />
                                 ))
                             ) : (
@@ -154,10 +154,10 @@ const MyBookings = () => {
                         <TabsContent value="past" className="space-y-4">
                             {filteredBookings.past.length > 0 ? (
                                 filteredBookings.past.map(booking => (
-                                    <BookingCard 
-                                        key={booking.id} 
-                                        booking={booking} 
-                                        onCancel={() => {}} 
+                                    <BookingCard
+                                        key={booking.id}
+                                        booking={booking}
+                                        onCancel={() => {}}
                                     />
                                 ))
                             ) : (
@@ -173,4 +173,3 @@ const MyBookings = () => {
 };
 
 export default MyBookings;
-

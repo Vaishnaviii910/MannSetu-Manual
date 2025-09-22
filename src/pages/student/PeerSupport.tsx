@@ -26,10 +26,12 @@ import {
   Clock,
   Shield,
   Zap,
+  BookOpen,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { usePeerSupport } from "@/hooks/usePeerSupport";
 import { useToast } from "@/hooks/use-toast";
+import { useStudentData } from "@/hooks/useStudentData";
 import {
   Select,
   SelectContent,
@@ -65,6 +67,7 @@ interface Post {
 const PeerSupport = () => {
   const { toast } = useToast();
   const { posts, forums, loading, createPost, toggleReaction, fetchReplies, createReply } = usePeerSupport();
+  const { studentData } = useStudentData();
 
   const { register, handleSubmit, reset } = useForm<{
     title: string;
@@ -85,15 +88,12 @@ const PeerSupport = () => {
 
   const sidebarItems = [
     { title: "Dashboard", url: "/student-dashboard", icon: Heart },
+    { title: "Mental Health Checkup", url: "/student/mental-health-checkup", icon: Brain },
     { title: "AI Chatbot", url: "/student/chatbot", icon: MessageCircle },
     { title: "Book Session", url: "/student/book-session", icon: Calendar },
-    {
-      title: "Peer Support",
-      url: "/student/peer-support",
-      icon: Users,
-      isActive: true,
-    },
-    { title: "Resources Hub", url: "/student/resources", icon: Brain },
+    { title: "My Bookings", url: "/student/my-bookings", icon: Calendar },
+    { title: "Peer Support", url: "/student/peer-support", icon: Users, isActive: true },
+    { title: "Resources Hub", url: "/student/resources", icon: BookOpen },
   ];
 
   const supportGroups = [
@@ -181,7 +181,7 @@ const PeerSupport = () => {
     <DashboardLayout
       sidebarItems={sidebarItems}
       userType="student"
-      userName="Alex Johnson"
+      userName={studentData?.full_name || "Student"}
     >
       <div className="space-y-6">
         <div className="space-y-2">
@@ -251,7 +251,7 @@ const PeerSupport = () => {
                         </div>
                         <Button type="submit">
                           <MessageSquare className="h-4 w-4 mr-2" />
-                          Post Anonymously
+                          Post
                         </Button>
                       </div>
                     </form>
@@ -310,7 +310,7 @@ const PeerSupport = () => {
                                   {post.reply_count || 0} Replies
                                 </Button>
                               </div>
-                              <Button variant="outline" size="sm">
+                              <Button variant="outline" size="sm" onClick={() => handleToggleReplies(post.post_id)}>
                                 Join Discussion
                               </Button>
                             </div>

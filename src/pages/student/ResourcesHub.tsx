@@ -3,11 +3,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  BookOpen, 
-  Video, 
-  Headphones, 
-  Download, 
+import {
+  BookOpen,
+  Video,
+  Headphones,
+  Download,
   Search,
   Play,
   Heart,
@@ -22,14 +22,19 @@ import {
   Bookmark
 } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { useStudentData } from "@/hooks/useStudentData";
 
 const ResourcesHub = () => {
+  const { studentData } = useStudentData();
+
   const sidebarItems = [
     { title: "Dashboard", url: "/student-dashboard", icon: Heart },
+    { title: "Mental Health Checkup", url: "/student/mental-health-checkup", icon: Brain },
     { title: "AI Chatbot", url: "/student/chatbot", icon: MessageCircle },
     { title: "Book Session", url: "/student/book-session", icon: Calendar },
+    { title: "My Bookings", url: "/student/my-bookings", icon: Calendar },
     { title: "Peer Support", url: "/student/peer-support", icon: Users },
-    { title: "Resources Hub", url: "/student/resources", icon: Brain, isActive: true },
+    { title: "Resources Hub", url: "/student/resources", icon: BookOpen, isActive: true },
   ];
 
   const categories = [
@@ -67,7 +72,7 @@ const ResourcesHub = () => {
       id: 3,
       title: "Building Healthy Sleep Habits for Students",
       description: "How to establish a consistent sleep schedule that supports your mental health",
-      category: "Sleep & Wellness", 
+      category: "Sleep & Wellness",
       readTime: "6 min read",
       rating: 4.7,
       language: "English",
@@ -133,7 +138,7 @@ const ResourcesHub = () => {
   ];
 
   return (
-    <DashboardLayout sidebarItems={sidebarItems} userType="student" userName="Alex Johnson">
+    <DashboardLayout sidebarItems={sidebarItems} userType="student" userName={studentData?.full_name || "Student"}>
       <div className="space-y-6">
         {/* Header */}
         <div className="space-y-4">
@@ -159,7 +164,7 @@ const ResourcesHub = () => {
           <div className="flex gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input 
+              <Input
                 placeholder="Search for resources, topics, or keywords..."
                 className="pl-10"
               />

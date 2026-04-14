@@ -108,6 +108,11 @@ The database comes with seed data for testing. All accounts use password: **`pas
 - Student reminders
 - 4 mental health resources (articles, video, audio)
 
+Note : Due to some reasons, seeded users are not functinal, use : 
+| Email | Name | Institute |
+|-------|------|-----------|
+| deepbansal2745@gmail.com | Deep Bansal | Bennett |
+
 ## Database Schema
 
 21 tables including: `profiles`, `institutes`, `students`, `counselors`, `bookings`, `time_slots`, `counselor_availability`, `session_records`, `phq_tests`, `gad_7_tests`, `mood_entries`, `forums`, `forum_posts`, `forum_replies`, `forum_likes`, `forum_post_reactions`, `chat_history`, `reminders`, `resources`, `audit_logs`, `availability_slots`

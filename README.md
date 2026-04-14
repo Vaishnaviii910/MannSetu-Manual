@@ -109,9 +109,9 @@ The database comes with seed data for testing. All accounts use password: **`pas
 - 4 mental health resources (articles, video, audio)
 
 Note : Due to some reasons, seeded users are not functinal, use : 
-| Email | Name | Institute |
+| Email | Name | Password |
 |-------|------|-----------|
-| deepbansal2745@gmail.com | Deep Bansal | Bennett |
+| deepbansal2745@gmail.com | Deep Bansal | Deep@1234 |
 
 ## Database Schema
 

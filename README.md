@@ -111,7 +111,7 @@ The database comes with seed data for testing. All accounts use password: **`pas
 Note : Due to some reasons, seeded users are not functinal, use : 
 | Email | Name | Password |
 |-------|------|-----------|
-| posterlyy11@gmail.com | Deep Bansal | Deep@1234 |
+| v212278@gmail.com | Vaishnavi | test@1234 |
 
 ## Database Schema
 
